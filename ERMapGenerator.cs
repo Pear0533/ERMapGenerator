@@ -85,16 +85,19 @@ public partial class ERMapGenerator : Form
         automateButton.Enabled = true;
     }
 
+    private static MagickImage CreateMapGrid(int gridSize)
+    {
+        return new MagickImage(MagickColors.White, 256 * gridSize, 256 * gridSize);
+    }
+
     private async Task GenerateMaps()
     {
-        // TODO: Might need to make grid size dynamic: grid size seems to decrease by 10?
-        const int gridSize = 41;
         foreach (BinderFile file in mapTileMaskBnd.Files)
         {
             string fileName = Path.GetFileName(file.Name);
             progressLabel.Invoke(new Action(() => progressLabel.Text = $@"Parsing map tile mask {fileName}..."));
             await Task.Delay(1000);
-            uint[,] vals = new uint[gridSize, gridSize];
+            Matrix flags = new();
             XmlDocument doc = new();
             doc.Load(new MemoryStream(file.Bytes));
             XmlNode? root = doc.LastChild;
@@ -120,35 +123,92 @@ public partial class ERMapGenerator : Form
                 if (!coord.StartsWith("0")) continue;
                 int x = int.Parse(coord.Substring(1, 2));
                 int y = int.Parse(coord.Substring(3, 2));
-                vals[x, y] = uint.Parse(node.Attributes[2].Value);
+                flags[x, y] = uint.Parse(node.Attributes[2].Value);
             }
-            MagickImage image = new(MagickColors.Black, 256 * gridSize, 256 * gridSize);
+            int previousZoomLevel = 0;
+            int gridSize = 41;
+            int tileSize = 256;
+            MagickImage grid = CreateMapGrid(gridSize);
             foreach (BinderFile tpfFile in mapTileTpfBhd.Files)
             {
                 TPF.Texture texFile = TPF.Read(tpfFile.Bytes).Textures[0];
+                string[] tokens = texFile.Name.Split('_');
+                if (!(tokens[0].ToLower() == "menu" && tokens[1].ToLower() == "maptile")) continue;
                 progressLabel.Invoke(new Action(() => progressLabel.Text = $@"Parsing texture file {texFile.Name}..."));
-                if (!texFile.Name.ToLower().StartsWith("menu_maptile")) continue;
-                string[] words = texFile.Name.Split('_');
-                // TODO: Account for the map level and zoom level during texture insertion
-                string mapLevel = words[2];
-                string zoomLevel = words[3];
-                uint x = ushort.Parse(words[4]);
-                uint y = uint.Parse(words[5]);
-                uint val = uint.Parse(words[6], NumberStyles.HexNumber);
-                if (vals[x, y] != val) continue;
-                MagickImage tile = new(texFile.Bytes);
-                image.Draw(new Drawables().Composite(x * 256, image.Height - y * 256 - 256, tile));
+                int zoomLevel = int.Parse(tokens[3][1..]);
+                if (zoomLevel != previousZoomLevel)
+                {
+                    string outputFileName = $"{texFile.Name.Replace($"L{zoomLevel}", $"L{previousZoomLevel}")}.tga";
+                    string outputFilePath = $"{outputFolderPath}\\{outputFileName}";
+                    progressLabel.Invoke(new Action(() => progressLabel.Text = $@"Writing {outputFileName} to file..."));
+                    await Task.Delay(1000);
+                    await grid.WriteAsync(outputFilePath);
+                    previousZoomLevel = zoomLevel;
+                    gridSize = zoomLevel switch
+                    {
+                        0 => 41,
+                        1 => 31,
+                        2 => 11,
+                        3 => 6,
+                        4 => 2,
+                        _ => gridSize
+                    };
+                    grid = CreateMapGrid(gridSize);
+                    tileSize = gridSize * 256 / (gridSize * (zoomLevel + 1));
+                }
+                int x = int.Parse(tokens[4]);
+                int y = int.Parse(tokens[5]);
+                int flag = int.Parse(tokens[6], NumberStyles.HexNumber);
+                // TODO: Re-write flag detection to account for the last byte
+                if (flags[x, y] != flag) continue;
+                MagickImage tile = new(MagickColors.White, tileSize, tileSize);
+                tile.BorderColor = MagickColors.Black;
+                tile.Border(2);
+                int adjustedX = x * 256;
+                // TODO: Temporary, subtraction of 5 might not be necessary
+                int adjustedY = grid.Height - y * 256 - 256 - 5;
+                grid.Draw(new Drawables().Composite(adjustedX, adjustedY, tile));
+                MagickReadSettings coordinateTextSettings = new()
+                {
+                    Font = "Calibri",
+                    FontPointsize = 16,
+                    FillColor = MagickColors.Red,
+                    TextGravity = Gravity.Northwest,
+                    BackgroundColor = MagickColors.Transparent,
+                    Height = 50,
+                    Width = 100
+                };
+                MagickImage coordinateText = new($"caption:[{x},{y}]", coordinateTextSettings);
+                grid.Composite(coordinateText, adjustedX + 5, adjustedY + 5, CompositeOperator.Over);
             }
-            string outputFileName = $"{Path.GetFileNameWithoutExtension(file.Name)}.tga";
-            string outputFilePath = $"{outputFolderPath}\\{outputFileName}";
-            progressLabel.Invoke(new Action(() => progressLabel.Text = $@"Writing {outputFileName} to file..."));
-            await Task.Delay(1000);
-            await image.WriteAsync(outputFilePath);
         }
     }
 
     private async void AutomateButton_Click(object sender, EventArgs e)
     {
         await Task.Run(GenerateMaps);
+    }
+
+    private class Matrix
+    {
+        private readonly Dictionary<string, uint> Data = new();
+        public uint this[int x, int y]
+        {
+            get
+            {
+                string key = GetKey(x, y);
+                return Data.ContainsKey(key) ? Data[key] : 0;
+            }
+            set
+            {
+                string key = GetKey(x, y);
+                Data[key] = value;
+            }
+        }
+
+        private static string GetKey(int x, int y)
+        {
+            return string.Join(",", new[] { x, y });
+        }
     }
 }
