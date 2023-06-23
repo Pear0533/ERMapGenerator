@@ -85,9 +85,9 @@ public partial class ERMapGenerator : Form
         automateButton.Enabled = true;
     }
 
-    private static MagickImage CreateMapGrid(int gridSize)
+    private static MagickImage CreateMapGrid(int gridSizeX, int gridSizeY)
     {
-        return new MagickImage(MagickColors.White, 256 * gridSize, 256 * gridSize);
+        return new MagickImage(MagickColors.White, 256 * gridSizeX, 256 * gridSizeY);
     }
 
     private async Task GenerateMaps()
@@ -126,9 +126,10 @@ public partial class ERMapGenerator : Form
                 flags[x, y] = uint.Parse(node.Attributes[2].Value);
             }
             int previousZoomLevel = 0;
-            int gridSize = 41;
+            int gridSizeX = 38;
+            int gridSizeY = 36;
             int tileSize = 256;
-            MagickImage grid = CreateMapGrid(gridSize);
+            MagickImage grid = CreateMapGrid(gridSizeX, gridSizeY);
             foreach (BinderFile tpfFile in mapTileTpfBhd.Files)
             {
                 TPF.Texture texFile = TPF.Read(tpfFile.Bytes).Textures[0];
@@ -143,18 +144,28 @@ public partial class ERMapGenerator : Form
                     progressLabel.Invoke(new Action(() => progressLabel.Text = $@"Writing {outputFileName} to file..."));
                     await Task.Delay(1000);
                     await grid.WriteAsync(outputFilePath);
+                    // TODO: Might need to clear the flags to ensure proper tile placement...
                     previousZoomLevel = zoomLevel;
-                    gridSize = zoomLevel switch
+                    gridSizeX = zoomLevel switch
                     {
-                        0 => 41,
+                        0 => 38,
                         1 => 31,
                         2 => 11,
                         3 => 6,
                         4 => 2,
-                        _ => gridSize
+                        _ => gridSizeX
                     };
-                    grid = CreateMapGrid(gridSize);
-                    tileSize = gridSize * 256 / (gridSize * (zoomLevel + 1));
+                    gridSizeY = zoomLevel switch
+                    {
+                        0 => 36,
+                        1 => 31,
+                        2 => 11,
+                        3 => 6,
+                        4 => 2,
+                        _ => gridSizeX
+                    };
+                    grid = CreateMapGrid(gridSizeX, gridSizeY);
+                    tileSize = gridSizeX * 256 / (gridSizeX * (zoomLevel + 1));
                 }
                 int x = int.Parse(tokens[4]);
                 int y = int.Parse(tokens[5]);
@@ -165,10 +176,9 @@ public partial class ERMapGenerator : Form
                 tile.BorderColor = MagickColors.Black;
                 tile.Border(2);
                 int adjustedX = x * 256;
-                // TODO: Temporary, subtraction of 5 might not be necessary
-                int adjustedY = grid.Height - y * 256 - 256 - 5;
+                int adjustedY = grid.Height - y * 256 - 256;
                 grid.Draw(new Drawables().Composite(adjustedX, adjustedY, tile));
-                MagickReadSettings coordinateTextSettings = new()
+                MagickReadSettings textSettings = new()
                 {
                     Font = "Calibri",
                     FontPointsize = 16,
@@ -178,8 +188,10 @@ public partial class ERMapGenerator : Form
                     Height = 50,
                     Width = 100
                 };
-                MagickImage coordinateText = new($"caption:[{x},{y}]", coordinateTextSettings);
+                MagickImage coordinateText = new($"caption:[{x},{y}]", textSettings);
+                MagickImage flagText = new($"caption:0x{flag:X8}", textSettings);
                 grid.Composite(coordinateText, adjustedX + 5, adjustedY + 5, CompositeOperator.Over);
+                grid.Composite(flagText, adjustedX + 5, adjustedY + 30, CompositeOperator.Over);
             }
         }
     }
