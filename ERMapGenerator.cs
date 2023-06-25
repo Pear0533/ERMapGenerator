@@ -13,6 +13,7 @@ public partial class ERMapGenerator : Form
     private static string mapTileTpfBhdPath = "";
     private static string mapTileTpfBtdPath = "";
     private static string outputFolderPath = "";
+    private static string[] mapTileMaskImagePaths = { };
     private static BND4 mapTileMaskBnd = new();
     private static BXF4 mapTileTpfBhd = new();
 
@@ -89,15 +90,6 @@ public partial class ERMapGenerator : Form
         return new MagickImage(MagickColors.White, 256 * gridSizeX, 256 * gridSizeY);
     }
 
-    private static string[] GetTextureFileNameTokens(int index)
-    {
-        BinderFile? tpfFile = mapTileTpfBhd.Files.ElementAtOrDefault(index);
-        if (tpfFile == null) return Array.Empty<string>();
-        TPF.Texture texFile = TPF.Read(tpfFile.Bytes).Textures[0];
-        string[] tokens = texFile.Name.Split('_');
-        return tokens;
-    }
-
     private async Task GenerateMaps()
     {
         foreach (BinderFile file in mapTileMaskBnd.Files)
@@ -105,7 +97,6 @@ public partial class ERMapGenerator : Form
             string fileName = Path.GetFileName(file.Name);
             progressLabel.Invoke(new Action(() => progressLabel.Text = $@"Parsing map tile mask {fileName}..."));
             await Task.Delay(1000);
-            // TODO: Eliminate using the map tile masks, they should be unnecessary...
             Matrix flags = new();
             XmlDocument doc = new();
             doc.Load(new MemoryStream(file.Bytes));
@@ -135,15 +126,12 @@ public partial class ERMapGenerator : Form
                 flags[x, y] = uint.Parse(node.Attributes[2].Value);
             }
             int previousZoomLevel = 0;
-            int flagOR = -1;
-            int gridSizeX = 41;
-            int gridSizeY = 41;
+            int gridSizeX = 38;
+            int gridSizeY = 36;
             int tileSize = 256;
             MagickImage grid = CreateMapGrid(gridSizeX, gridSizeY);
-            List<int[]> drawnTiles = new();
-            for (int i = 0; i < mapTileTpfBhd.Files.Count; i++)
+            foreach (BinderFile tpfFile in mapTileTpfBhd.Files)
             {
-                BinderFile tpfFile = mapTileTpfBhd.Files[i];
                 TPF.Texture texFile = TPF.Read(tpfFile.Bytes).Textures[0];
                 string[] tokens = texFile.Name.Split('_');
                 if (!(tokens[0].ToLower() == "menu" && tokens[1].ToLower() == "maptile")) continue;
@@ -156,10 +144,11 @@ public partial class ERMapGenerator : Form
                     progressLabel.Invoke(new Action(() => progressLabel.Text = $@"Writing {outputFileName} to file..."));
                     await Task.Delay(1000);
                     await grid.WriteAsync(outputFilePath);
+                    // TODO: Might need to clear the flags to ensure proper tile placement...
                     previousZoomLevel = zoomLevel;
                     gridSizeX = zoomLevel switch
                     {
-                        0 => 41,
+                        0 => 38,
                         1 => 31,
                         2 => 11,
                         3 => 6,
@@ -168,7 +157,7 @@ public partial class ERMapGenerator : Form
                     };
                     gridSizeY = zoomLevel switch
                     {
-                        0 => 41,
+                        0 => 36,
                         1 => 31,
                         2 => 11,
                         3 => 6,
@@ -180,25 +169,10 @@ public partial class ERMapGenerator : Form
                 }
                 int x = int.Parse(tokens[4]);
                 int y = int.Parse(tokens[5]);
-                // TODO: This coordinate string assignment is really messy...
-                string coordinateString = $"M0{mapTileMaskBnd.Files.IndexOf(file)}_L{zoomLevel}_{x.ToString().PadLeft(2, '0')}_{y.ToString().PadLeft(2, '0')}_";
                 int flag = int.Parse(tokens[6], NumberStyles.HexNumber);
-                if (flagOR == -1) flagOR = flag;
-                string[] nextTexFileTokens = GetTextureFileNameTokens(i + 1);
-                if (nextTexFileTokens.Length > 0)
-                {
-                    flagOR |= int.Parse(nextTexFileTokens[6], NumberStyles.HexNumber);
-                    string flagORString = flagOR.ToString("X8");
-                    flagOR = -1;
-                    List<BinderFile> tileVariants = mapTileTpfBhd.Files.Where(t => t.Name.Contains(coordinateString)).ToList();
-                    bool isNextNewTile = int.Parse(nextTexFileTokens[4]) != x || int.Parse(nextTexFileTokens[5]) != y;
-                    int index = tileVariants.FindIndex(f => f.Name.Contains(flagORString));
-                    bool doesTileVariantExist = index != -1 && !isNextNewTile || drawnTiles.FindIndex(c => c[0] == x && c[1] == y) != -1;
-                    if (flag == 0 && !isNextNewTile || doesTileVariantExist) continue;
-                }
-                drawnTiles.Add(new[] { x, y });
-                MagickImage tile = new(texFile.Bytes);
-                tile.Resize(tileSize, tileSize);
+                // TODO: Re-write flag detection to account for the last byte
+                if (flags[x, y] != flag) continue;
+                MagickImage tile = new(MagickColors.White, tileSize, tileSize);
                 tile.BorderColor = MagickColors.Black;
                 tile.Border(2);
                 int adjustedX = x * 256;
