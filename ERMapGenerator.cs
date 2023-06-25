@@ -13,7 +13,6 @@ public partial class ERMapGenerator : Form
     private static string mapTileTpfBhdPath = "";
     private static string mapTileTpfBtdPath = "";
     private static string outputFolderPath = "";
-    private static string[] mapTileMaskImagePaths = { };
     private static BND4 mapTileMaskBnd = new();
     private static BXF4 mapTileTpfBhd = new();
 
@@ -126,8 +125,8 @@ public partial class ERMapGenerator : Form
                 flags[x, y] = uint.Parse(node.Attributes[2].Value);
             }
             int previousZoomLevel = 0;
-            int gridSizeX = 38;
-            int gridSizeY = 36;
+            int gridSizeX = 41;
+            int gridSizeY = 41;
             int tileSize = 256;
             MagickImage grid = CreateMapGrid(gridSizeX, gridSizeY);
             foreach (BinderFile tpfFile in mapTileTpfBhd.Files)
@@ -148,7 +147,7 @@ public partial class ERMapGenerator : Form
                     previousZoomLevel = zoomLevel;
                     gridSizeX = zoomLevel switch
                     {
-                        0 => 38,
+                        0 => 41,
                         1 => 31,
                         2 => 11,
                         3 => 6,
@@ -157,7 +156,7 @@ public partial class ERMapGenerator : Form
                     };
                     gridSizeY = zoomLevel switch
                     {
-                        0 => 36,
+                        0 => 41,
                         1 => 31,
                         2 => 11,
                         3 => 6,
@@ -170,9 +169,13 @@ public partial class ERMapGenerator : Form
                 int x = int.Parse(tokens[4]);
                 int y = int.Parse(tokens[5]);
                 int flag = int.Parse(tokens[6], NumberStyles.HexNumber);
-                // TODO: Re-write flag detection to account for the last byte
-                if (flags[x, y] != flag) continue;
-                MagickImage tile = new(MagickColors.White, tileSize, tileSize);
+                if ((flags[x, y] & ~(1 << 17)) != flag)
+                {
+                    // ...
+                    continue;
+                }
+                MagickImage tile = new(texFile.Bytes);
+                tile.Resize(tileSize, tileSize);
                 tile.BorderColor = MagickColors.Black;
                 tile.Border(2);
                 int adjustedX = x * 256;
