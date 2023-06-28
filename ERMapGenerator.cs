@@ -15,6 +15,8 @@ public partial class ERMapGenerator : Form
     private static string outputFolderPath = "";
     private static BND4 mapTileMaskBnd = new();
     private static BXF4 mapTileTpfBhd = new();
+    private static Matrix Flags = new();
+    private static XmlNode? MapTileMaskRoot;
 
     public ERMapGenerator()
     {
@@ -84,9 +86,45 @@ public partial class ERMapGenerator : Form
         automateButton.Enabled = true;
     }
 
-    private static MagickImage CreateMapGrid(int gridSizeX, int gridSizeY)
+    private static MagickImage CreateMapGrid(int gridSizeX, int gridSizeY, int tileSize)
     {
-        return new MagickImage(MagickColors.White, 256 * gridSizeX, 256 * gridSizeY);
+        // TODO: We might only need to multiply by 256...
+        return new MagickImage(MagickColors.White, tileSize * gridSizeX, tileSize * gridSizeY);
+    }
+
+    private static void SetFlags(int zoomLevel)
+    {
+        Flags = new Matrix();
+        for (int i = 0; i < MapTileMaskRoot?.ChildNodes.Count; ++i)
+        {
+            XmlNode? node = MapTileMaskRoot.ChildNodes[i];
+            if (node == null)
+            {
+                ShowInformationDialog($@"Coordinate node {i} does not exist.");
+                continue;
+            }
+            if (node.Attributes == null || node.Attributes.Count < 2)
+            {
+                ShowInformationDialog($@"Coordinate node {i} does not contain any attribute information.");
+                continue;
+            }
+            string coord = $"{int.Parse(node.Attributes[1].Value):00000}";
+            if (coord == "02831")
+            {
+                Console.WriteLine("");
+            }
+            bool isValid = zoomLevel switch
+            {
+                0 => coord.StartsWith("0"),
+                1 => coord.StartsWith("1"),
+                2 => coord.StartsWith("2"),
+                _ => false
+            };
+            if (!isValid) continue;
+            int x = int.Parse(coord.Substring(1, 2));
+            int y = int.Parse(coord.Substring(3, 2));
+            Flags[x, y] = int.Parse(node.Attributes[2].Value);
+        }
     }
 
     private async Task GenerateMaps()
@@ -96,39 +134,20 @@ public partial class ERMapGenerator : Form
             string fileName = Path.GetFileName(file.Name);
             progressLabel.Invoke(new Action(() => progressLabel.Text = $@"Parsing map tile mask {fileName}..."));
             await Task.Delay(1000);
-            Matrix flags = new();
             XmlDocument doc = new();
             doc.Load(new MemoryStream(file.Bytes));
-            XmlNode? root = doc.LastChild;
-            if (root == null)
+            MapTileMaskRoot = doc.LastChild;
+            if (MapTileMaskRoot == null)
             {
                 ShowInformationDialog($@"{fileName} contains no root XML node.");
                 continue;
             }
-            for (int i = 0; i < root.ChildNodes.Count; ++i)
-            {
-                XmlNode? node = root.ChildNodes[i];
-                if (node == null)
-                {
-                    ShowInformationDialog($@"Coordinate node {i} does not exist.");
-                    continue;
-                }
-                if (node.Attributes == null || node.Attributes.Count < 2)
-                {
-                    ShowInformationDialog($@"Coordinate node {i} does not contain any attribute information.");
-                    continue;
-                }
-                string coord = $"{int.Parse(node.Attributes[1].Value):00000}";
-                if (!coord.StartsWith("0")) continue;
-                int x = int.Parse(coord.Substring(1, 2));
-                int y = int.Parse(coord.Substring(3, 2));
-                flags[x, y] = uint.Parse(node.Attributes[2].Value);
-            }
+            SetFlags(0);
             int previousZoomLevel = 0;
             int gridSizeX = 41;
             int gridSizeY = 41;
-            int tileSize = 256;
-            MagickImage grid = CreateMapGrid(gridSizeX, gridSizeY);
+            const int tileSize = 256;
+            MagickImage grid = CreateMapGrid(gridSizeX, gridSizeY, tileSize);
             foreach (BinderFile tpfFile in mapTileTpfBhd.Files)
             {
                 TPF.Texture texFile = TPF.Read(tpfFile.Bytes).Textures[0];
@@ -138,12 +157,12 @@ public partial class ERMapGenerator : Form
                 int zoomLevel = int.Parse(tokens[3][1..]);
                 if (zoomLevel != previousZoomLevel)
                 {
-                    string outputFileName = $"{texFile.Name.Replace($"L{zoomLevel}", $"L{previousZoomLevel}")}.tga";
+                    SetFlags(zoomLevel);
+                    string outputFileName = $"{texFile.Name.Replace($"L{zoomLevel}", $"L{zoomLevel - 1}")}.tga";
                     string outputFilePath = $"{outputFolderPath}\\{outputFileName}";
                     progressLabel.Invoke(new Action(() => progressLabel.Text = $@"Writing {outputFileName} to file..."));
                     await Task.Delay(1000);
                     await grid.WriteAsync(outputFilePath);
-                    // TODO: Might need to clear the flags to ensure proper tile placement...
                     previousZoomLevel = zoomLevel;
                     gridSizeX = zoomLevel switch
                     {
@@ -163,23 +182,23 @@ public partial class ERMapGenerator : Form
                         4 => 2,
                         _ => gridSizeX
                     };
-                    grid = CreateMapGrid(gridSizeX, gridSizeY);
-                    tileSize = gridSizeX * 256 / (gridSizeX * (zoomLevel + 1));
+                    grid = CreateMapGrid(gridSizeX, gridSizeY, tileSize);
                 }
                 int x = int.Parse(tokens[4]);
                 int y = int.Parse(tokens[5]);
                 int flag = int.Parse(tokens[6], NumberStyles.HexNumber);
-                if ((flags[x, y] & ~(1 << 17)) != flag)
+                long[] filteredFlags =
                 {
-                    // ...
-                    continue;
-                }
+                    Flags[x, y] & ~(1 << 17),
+                    Flags[x, y] & ~(1 << 18)
+                };
+                if (filteredFlags.All(i => i != flag) && zoomLevel != 3 && zoomLevel != 4) continue;
                 MagickImage tile = new(texFile.Bytes);
                 tile.Resize(tileSize, tileSize);
                 tile.BorderColor = MagickColors.Black;
                 tile.Border(2);
-                int adjustedX = x * 256;
-                int adjustedY = grid.Height - y * 256 - 256;
+                int adjustedX = x * tileSize;
+                int adjustedY = grid.Height - y * tileSize - tileSize;
                 grid.Draw(new Drawables().Composite(adjustedX, adjustedY, tile));
                 MagickReadSettings textSettings = new()
                 {
@@ -206,13 +225,13 @@ public partial class ERMapGenerator : Form
 
     private class Matrix
     {
-        private readonly Dictionary<string, uint> Data = new();
-        public uint this[int x, int y]
+        private readonly Dictionary<string, int> Data = new();
+        public int this[int x, int y]
         {
             get
             {
                 string key = GetKey(x, y);
-                return Data.ContainsKey(key) ? Data[key] : 0;
+                return Data.ContainsKey(key) ? Data[key] : -1;
             }
             set
             {
