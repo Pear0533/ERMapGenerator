@@ -88,7 +88,6 @@ public partial class ERMapGenerator : Form
 
     private static MagickImage CreateMapGrid(int gridSizeX, int gridSizeY, int tileSize)
     {
-        // TODO: We might only need to multiply by 256...
         return new MagickImage(MagickColors.White, tileSize * gridSizeX, tileSize * gridSizeY);
     }
 
@@ -148,9 +147,11 @@ public partial class ERMapGenerator : Form
             int gridSizeY = 41;
             const int tileSize = 256;
             MagickImage grid = CreateMapGrid(gridSizeX, gridSizeY, tileSize);
+            string rawOutputFileName = "";
             foreach (BinderFile tpfFile in mapTileTpfBhd.Files)
             {
                 TPF.Texture texFile = TPF.Read(tpfFile.Bytes).Textures[0];
+                if (string.IsNullOrEmpty(rawOutputFileName)) rawOutputFileName = texFile.Name;
                 string[] tokens = texFile.Name.Split('_');
                 if (!(tokens[0].ToLower() == "menu" && tokens[1].ToLower() == "maptile")) continue;
                 progressLabel.Invoke(new Action(() => progressLabel.Text = $@"Parsing texture file {texFile.Name}..."));
@@ -158,11 +159,12 @@ public partial class ERMapGenerator : Form
                 if (zoomLevel != previousZoomLevel)
                 {
                     SetFlags(zoomLevel);
-                    string outputFileName = $"{texFile.Name.Replace($"L{zoomLevel}", $"L{zoomLevel - 1}")}.tga";
+                    string outputFileName = $"{rawOutputFileName}.tga";
                     string outputFilePath = $"{outputFolderPath}\\{outputFileName}";
                     progressLabel.Invoke(new Action(() => progressLabel.Text = $@"Writing {outputFileName} to file..."));
                     await Task.Delay(1000);
                     await grid.WriteAsync(outputFilePath);
+                    rawOutputFileName = texFile.Name;
                     previousZoomLevel = zoomLevel;
                     gridSizeX = zoomLevel switch
                     {
@@ -192,7 +194,7 @@ public partial class ERMapGenerator : Form
                     Flags[x, y] & ~(1 << 17),
                     Flags[x, y] & ~(1 << 18)
                 };
-                if (filteredFlags.All(i => i != flag) && zoomLevel != 3 && zoomLevel != 4) continue;
+                if (filteredFlags.All(i => i != flag) && zoomLevel < 3) continue;
                 MagickImage tile = new(texFile.Bytes);
                 tile.Resize(tileSize, tileSize);
                 tile.BorderColor = MagickColors.Black;
