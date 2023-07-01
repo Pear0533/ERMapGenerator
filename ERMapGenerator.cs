@@ -128,7 +128,7 @@ public partial class ERMapGenerator : Form
 
     private async Task GenerateMaps()
     {
-        foreach (BinderFile file in mapTileMaskBnd.Files)
+        foreach (BinderFile file in mapTileMaskBnd.Files.SkipLast(1))
         {
             string fileName = Path.GetFileName(file.Name);
             progressLabel.Invoke(new Action(() => progressLabel.Text = $@"Parsing map tile mask {fileName}..."));
@@ -165,6 +165,7 @@ public partial class ERMapGenerator : Form
                     await Task.Delay(1000);
                     await grid.WriteAsync(outputFilePath);
                     rawOutputFileName = texFile.Name;
+                    if (rawOutputFileName.Contains("L0")) return;
                     previousZoomLevel = zoomLevel;
                     gridSizeX = zoomLevel switch
                     {
@@ -198,14 +199,16 @@ public partial class ERMapGenerator : Form
                 MagickImage tile = new(texFile.Bytes);
                 tile.Resize(tileSize, tileSize);
                 tile.BorderColor = MagickColors.Black;
-                tile.Border(2);
+                tile.Border(5);
                 int adjustedX = x * tileSize;
                 int adjustedY = grid.Height - y * tileSize - tileSize;
                 grid.Draw(new Drawables().Composite(adjustedX, adjustedY, tile));
                 MagickReadSettings textSettings = new()
                 {
                     Font = "Calibri",
-                    FontPointsize = 16,
+                    FontPointsize = 20,
+                    StrokeColor = MagickColors.Red,
+                    StrokeWidth = 1,
                     FillColor = MagickColors.Red,
                     TextGravity = Gravity.Northwest,
                     BackgroundColor = MagickColors.Transparent,
@@ -214,8 +217,8 @@ public partial class ERMapGenerator : Form
                 };
                 MagickImage coordinateText = new($"caption:[{x},{y}]", textSettings);
                 MagickImage flagText = new($"caption:0x{flag:X8}", textSettings);
-                grid.Composite(coordinateText, adjustedX + 5, adjustedY + 5, CompositeOperator.Over);
-                grid.Composite(flagText, adjustedX + 5, adjustedY + 30, CompositeOperator.Over);
+                grid.Composite(coordinateText, adjustedX + 10, adjustedY + 15, CompositeOperator.Over);
+                grid.Composite(flagText, adjustedX + 10, adjustedY + 40, CompositeOperator.Over);
             }
         }
     }
@@ -223,6 +226,9 @@ public partial class ERMapGenerator : Form
     private async void AutomateButton_Click(object sender, EventArgs e)
     {
         await Task.Run(GenerateMaps);
+        progressLabel.Invoke(new Action(() => progressLabel.Text = @"Automation complete!"));
+        await Task.Delay(1000);
+        progressLabel.Text = @"Waiting...";
     }
 
     private class Matrix
