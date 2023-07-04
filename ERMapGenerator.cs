@@ -7,7 +7,7 @@ namespace ERMapGenerator;
 
 public partial class ERMapGenerator : Form
 {
-    private const string version = "1.0";
+    private const string version = "1.1";
     private static string gameModFolderPath = "";
     private static string mapTileMaskBndPath = "";
     private static string mapTileTpfBhdPath = "";
