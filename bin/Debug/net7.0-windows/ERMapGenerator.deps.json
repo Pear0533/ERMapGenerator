@@ -9,6 +9,8 @@
       "ERMapGenerator/1.0.0": {
         "dependencies": {
           "Magick.NET-Q16-AnyCPU": "13.1.3",
+          "DdsFileTypePlus": "1.11.1.0",
+          "PaintDotNet.Base": "1.0.0.0",
           "SoulsFormats": "1.0.0.0"
         },
         "runtime": {
@@ -76,6 +78,22 @@
           }
         }
       },
+      "DdsFileTypePlus/1.11.1.0": {
+        "runtime": {
+          "DdsFileTypePlus.dll": {
+            "assemblyVersion": "1.11.1.0",
+            "fileVersion": "1.11.1.0"
+          }
+        }
+      },
+      "PaintDotNet.Base/1.0.0.0": {
+        "runtime": {
+          "PaintDotNet.Base.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
       "SoulsFormats/1.0.0.0": {
         "runtime": {
           "SoulsFormats.dll": {
@@ -105,6 +123,16 @@
       "sha512": "sha512-pl4wYaJXuYRUSIH+VkQC+wvhuZZI9YcZPr4GtL/HGCHoz2LOULv6HLSl4Ox4N4aMi0QQqJZVyn6R++V+sJzyAA==",
       "path": "magick.net.core/13.1.3",
       "hashPath": "magick.net.core.13.1.3.nupkg.sha512"
+    },
+    "DdsFileTypePlus/1.11.1.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "PaintDotNet.Base/1.0.0.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
     },
     "SoulsFormats/1.0.0.0": {
       "type": "reference",

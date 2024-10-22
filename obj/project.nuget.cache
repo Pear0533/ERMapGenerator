@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "dzt0c4w/WJfP95U5NNdcq9dc2Br5Lz0tQqUIYQc5IrZPcLbfHoJrXuBUM+9MR2AbSqvtduVXhFFq+SonURgadA==",
+  "dgSpecHash": "Vvc/TLTh+lK5dVRegD5yDXRh2dWNo2HV7MwsqF8atTQrMoG3LwwBEM5Fy0HJ4v5R0H2Hm3+E9bnJxRIzgNdcxQ==",
   "success": true,
-  "projectFilePath": "D:\\Syncthing Shared\\Game Mods & Tools\\Tools\\FromSoftware\\Repositories\\Active\\ERMapGenerator\\ERMapGenerator.csproj",
+  "projectFilePath": "C:\\Users\\Isaac Fisher\\Downloads\\ERMapGenerator\\ERMapGenerator.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Isaac Fisher\\.nuget\\packages\\magick.net-q16-anycpu\\13.1.3\\magick.net-q16-anycpu.13.1.3.nupkg.sha512",
     "C:\\Users\\Isaac Fisher\\.nuget\\packages\\magick.net.core\\13.1.3\\magick.net.core.13.1.3.nupkg.sha512"
