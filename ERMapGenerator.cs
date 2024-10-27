@@ -24,7 +24,6 @@ public partial class ERMapGenerator : Form
     private static bool isDraggingMapDisplay;
     private static int mapDisplayXPos;
     private static int mapDisplayYPos;
-    private bool isBusy;
     private float mapDisplayMinZoomLevel = -1;
     private float mapDisplayZoomLevel;
     private string mapImageFilePath = "";
@@ -88,10 +87,10 @@ public partial class ERMapGenerator : Form
         if (!ResourceExists(mapTileMaskBndPath, "map tile mask BND")) return;
         if (!ResourceExists(mapTileTpfBhdPath, "map tile TPF BHD")) return;
         if (!ResourceExists(mapTileTpfBtdPath, "map tile TPF BTD")) return;
-        // gameModFolderPathLabel.Text = Path.GetDirectoryName(mapTileMaskBndPath);
+        gameModFolderPathLabel.Text = Path.GetDirectoryName(mapTileMaskBndPath);
         mapTileMaskBnd = BND4.Read(mapTileMaskBndPath);
         mapTileTpfBhd = BXF4.Read(mapTileTpfBhdPath, mapTileTpfBtdPath);
-        // outputFolderGroupBox.Enabled = true;
+        outputFolderGroupBox.Enabled = true;
     }
 
     private void OutputFolderButton_Click(object sender, EventArgs e)
@@ -99,12 +98,9 @@ public partial class ERMapGenerator : Form
         FolderBrowserDialog dialog = new();
         if (dialog.ShowDialog() != DialogResult.OK) return;
         outputFolderPath = dialog.SelectedPath;
-        /*
         outputFolderPathLabel.Text = outputFolderPath;
-        statusLabel.Enabled = true;
-        progressLabel.Enabled = true;
-        automateButton.Enabled = true;
-        */
+        PopulateGroundLevels();
+        PopulateZoomLevels();
     }
 
     private static MagickImage CreateMapGrid(int gridSizeX, int gridSizeY, int tileSize)
@@ -149,10 +145,11 @@ public partial class ERMapGenerator : Form
 
     private async Task GenerateMaps()
     {
+        if (string.IsNullOrEmpty(outputFolderPath)) return;
         foreach (BinderFile file in mapTileMaskBnd.Files.SkipLast(1))
         {
             string fileName = Path.GetFileName(file.Name);
-            // progressLabel.Invoke(new Action(() => progressLabel.Text = $@"Parsing map tile mask {fileName}..."));
+            progressLabel.Invoke(new Action(() => progressLabel.Text = $@"Parsing map tile mask {fileName}..."));
             await Task.Delay(1000);
             XmlDocument doc = new();
             doc.Load(new MemoryStream(file.Bytes));
@@ -175,14 +172,14 @@ public partial class ERMapGenerator : Form
                 if (string.IsNullOrEmpty(rawOutputFileName)) rawOutputFileName = texFile.Name;
                 string[] tokens = texFile.Name.Split('_');
                 if (!(tokens[0].ToLower() == "menu" && tokens[1].ToLower() == "maptile")) continue;
-                // progressLabel.Invoke(new Action(() => progressLabel.Text = $@"Parsing texture file {texFile.Name}..."));
+                progressLabel.Invoke(new Action(() => progressLabel.Text = $@"Parsing texture file {texFile.Name}..."));
                 int zoomLevel = int.Parse(tokens[3][1..]);
                 if (zoomLevel != previousZoomLevel)
                 {
                     SetFlags(zoomLevel);
                     string outputFileName = $"{rawOutputFileName}.tga";
                     string outputFilePath = $"{outputFolderPath}\\{outputFileName}";
-                    // progressLabel.Invoke(new Action(() => progressLabel.Text = $@"Writing {outputFileName} to file..."));
+                    progressLabel.Invoke(new Action(() => progressLabel.Text = $@"Writing {outputFileName} to file..."));
                     await Task.Delay(1000);
                     await grid.WriteAsync(outputFilePath);
                     rawOutputFileName = texFile.Name;
@@ -246,8 +243,31 @@ public partial class ERMapGenerator : Form
 
     private void RepackTileMap()
     {
-        string groundLevel = groundLevelComboBox.Invoke(() => GetGroundLevels()[groundLevelComboBox.SelectedIndex]);
-        string zoomLevel = zoomLevelComboBox.Invoke(() => GetZoomLevels().Keys.ToList()[zoomLevelComboBox.SelectedIndex]);
+        List<string> groundLevels = GetGroundLevels();
+        List<string> zoomLevels = GetZoomLevels().Keys.ToList();
+        int groundLevelIndex = groundLevelComboBox.Invoke(() => groundLevelComboBox.SelectedIndex);
+        int zoomLevelIndex = zoomLevelComboBox.Invoke(() => zoomLevelComboBox.SelectedIndex);
+        groundLevels = GetFilteredGroundLevels(groundLevelIndex, groundLevels).ToList();
+        zoomLevels = GetFilteredZoomLevels(zoomLevelIndex, zoomLevels).ToList();
+        foreach (string groundLevel in groundLevels)
+        {
+            foreach (string zoomLevel in zoomLevels)
+                ExportTiles(groundLevel, zoomLevel);
+        }
+    }
+
+    private static IEnumerable<string> GetFilteredGroundLevels(int groundLevelIndex, IReadOnlyList<string> groundLevels)
+    {
+        return groundLevelIndex == 0 ? groundLevels.Skip(1) : new[] { groundLevels[groundLevelIndex] };
+    }
+
+    private static IEnumerable<string> GetFilteredZoomLevels(int zoomLevelIndex, IReadOnlyList<string> zoomLevels)
+    {
+        return zoomLevelIndex == 0 ? zoomLevels.Skip(1) : new[] { zoomLevels[zoomLevelIndex] };
+    }
+
+    private void ExportTiles(string groundLevel, string zoomLevel)
+    {
         int gridSize = GetZoomLevels().GetValueOrDefault(zoomLevel);
         const int tileSize = 256;
         string outputDirectory = Path.Combine(Path.GetDirectoryName(mapImageFilePathLabel.Text)!, "output");
@@ -286,19 +306,26 @@ public partial class ERMapGenerator : Form
         }
     }
 
-    // TODO: Make this work for unpacking and stitching a map...
-    // TODO: Make it so only one automation operation can run at a time...
+    private void ToggleAllControls(bool wantsEnabled)
+    {
+        RefreshMapImage();
+        mapConfigurationGroupBox.Enabled = wantsEnabled;
+        automationModeTabControl.Enabled = wantsEnabled;
+        automateButton.Enabled = wantsEnabled;
+    }
+
+    // TODO: Account for setting individual ground and zoom levels when stitching a map...
+    // TODO: Implement the ability to use all ground and zoom levels when stitching a map...
 
     private async void AutomateButton_Click(object sender, EventArgs e)
     {
-        if (isBusy) return;
-        isBusy = true;
-        // await Task.Run(GenerateMaps);
-        await Task.Run(RepackTileMap);
+        ToggleAllControls(false);
+        if (automationModeTabControl.SelectedIndex == 0) await Task.Run(GenerateMaps);
+        else await Task.Run(RepackTileMap);
         progressLabel.Invoke(new Action(() => progressLabel.Text = @"Automation complete!"));
         await Task.Delay(1000);
         progressLabel.Text = @"Waiting...";
-        isBusy = false;
+        ToggleAllControls(true);
     }
 
     private void UpdateMapDisplayMinZoomLevel()
@@ -311,12 +338,11 @@ public partial class ERMapGenerator : Form
         mapDisplayPictureBox.SizeMode = PictureBoxSizeMode.AutoSize;
     }
 
-    // TODO: The L3 and L4 zoom levels are not used for M01...
-
     private static List<string> GetGroundLevels()
     {
         return new List<string>
         {
+            "All",
             "M00",
             "M01",
             "M10",
@@ -326,32 +352,38 @@ public partial class ERMapGenerator : Form
 
     private void PopulateGroundLevels()
     {
-        mapDisplayOpenMapImageLabel.Visible = false;
-        mapDisplayGroupBox.Enabled = true;
         mapConfigurationGroupBox.Enabled = true;
-        unpackStitchMapRadioButton.Checked = true;
+        automateButton.Enabled = true;
         List<string> groundLevels = GetGroundLevels();
         groundLevelComboBox.Items.Clear();
-        groundLevels[0] += " (Overworld)";
-        groundLevels[1] += " (Underworld)";
-        groundLevels[2] += " (DLC)";
-        groundLevels[3] += " (Unused)";
+        groundLevels[1] += " (Overworld)";
+        groundLevels[2] += " (Underworld)";
+        groundLevels[3] += " (DLC)";
+        groundLevels[4] += " (Unused)";
         groundLevels.ForEach(i => groundLevelComboBox.Items.Add(i));
         groundLevelComboBox.SelectedIndex = 0;
     }
 
     // TODO: Implement autosizing if the map image doesn't match the zoom level...
 
-    private static Dictionary<string, int> GetZoomLevels()
+    private Dictionary<string, int> GetZoomLevels()
     {
-        return new Dictionary<string, int>
+        Dictionary<string, int> dict = new()
         {
+            { "All", -1 },
             { "L0", 41 },
             { "L1", 31 },
             { "L2", 11 },
             { "L3", 6 },
             { "L4", 2 }
         };
+        if (groundLevelComboBox
+            .Invoke(() =>
+                groundLevelComboBox.SelectedIndex != 2))
+            return dict;
+        dict.Remove("L3");
+        dict.Remove("L4");
+        return dict;
     }
 
     private void PopulateZoomLevels()
@@ -359,16 +391,27 @@ public partial class ERMapGenerator : Form
         Dictionary<string, int> zoomLevels = GetZoomLevels();
         zoomLevelComboBox.Items.Clear();
         List<string> zoomLevelKeys = zoomLevels.Keys.ToList();
-        zoomLevelKeys[0] += " (41x41)";
-        zoomLevelKeys[1] += " (31x31)";
-        zoomLevelKeys[2] += " (11x11)";
-        zoomLevelKeys[3] += " (6x6)";
-        zoomLevelKeys[4] += " (2x2)";
-        zoomLevelKeys.ToList().ForEach(i => zoomLevelComboBox.Items.Add(i));
+        string[] suffixes = { "", " (41x41)", " (31x31)", " (11x11)", " (6x6)", " (2x2)" };
+        for (int i = 0; i < zoomLevelKeys.Count; i++)
+        {
+            if (i < suffixes.Length) zoomLevelKeys[i] += suffixes[i];
+            zoomLevelComboBox.Items.Add(zoomLevelKeys[i]);
+        }
         zoomLevelComboBox.SelectedIndex = 0;
     }
 
-    private bool UpdateMapImage(string path)
+    private void RefreshMapImage(bool resetPosition = false)
+    {
+        // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+        if (savedMapImage == null) return;
+        mapDisplayPictureBox.Image?.Dispose();
+        mapDisplayPictureBox.Image = new Bitmap(savedMapImage);
+        mapDisplayPictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
+        if (resetPosition) UpdateMapImagePosition(0, 0);
+        mapDisplayMinZoomLevel = -1;
+    }
+
+    private bool LoadMapImage(string path)
     {
         Bitmap mapImage;
         try
@@ -381,29 +424,25 @@ public partial class ERMapGenerator : Form
             return false;
         }
         savedMapImage = new Bitmap(mapImage);
-        mapDisplayPictureBox.Image?.Dispose();
-        mapDisplayPictureBox.Image = mapImage;
-        mapDisplayPictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
-        UpdateMapImagePosition(0, 0);
-        mapDisplayMinZoomLevel = -1;
+        RefreshMapImage(true);
         return true;
     }
 
     private void BrowseMapImageButton_Click(object sender, EventArgs e)
     {
-        if (isBusy) return;
         OpenFileDialog dialog = new()
         {
             Filter = @"DDS File (*.dds)|*.dds",
             Title = @"Select Map DDS Image"
         };
         if (dialog.ShowDialog() != DialogResult.OK) return;
-        if (!UpdateMapImage(dialog.FileName)) return;
+        if (!LoadMapImage(dialog.FileName)) return;
         mapImageFilePath = dialog.FileName;
         mapImageFilePathLabel.Text = mapImageFilePath;
+        mapDisplayOpenMapImageLabel.Visible = false;
+        mapDisplayGroupBox.Enabled = true;
         PopulateGroundLevels();
         PopulateZoomLevels();
-        // TODO: Toggle the automation controls...
     }
 
     private void MapDisplayPictureBox_MouseDown(object sender, MouseEventArgs e)
@@ -447,6 +486,8 @@ public partial class ERMapGenerator : Form
     {
         mapDisplayGroupBox.Enabled = false;
         mapConfigurationGroupBox.Enabled = false;
+        outputFolderGroupBox.Enabled = false;
+        automateButton.Enabled = false;
     }
 
     private void MapDisplayPictureBox_MouseWheel(object? sender, MouseEventArgs e)
@@ -495,6 +536,16 @@ public partial class ERMapGenerator : Form
         DdsFile.Save(recomDdsStream, DdsFileFormat.BC7, DdsErrorMetric.Perceptual, BC7CompressionSpeed.Fast,
             false, false, ResamplingAlgorithm.Bicubic, ddsSurface, null);
         return recomDdsStream.ToArray();
+    }
+
+    private void AutomationModeTabControl_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        RefreshMapImage();
+    }
+
+    private void GroundLevelComboBox_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        PopulateZoomLevels();
     }
 
     private class Matrix
