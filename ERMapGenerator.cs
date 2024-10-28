@@ -143,9 +143,19 @@ public partial class ERMapGenerator : Form
         }
     }
 
-    private async Task GenerateMaps()
+    private async Task WriteStitchedMap(IMagickImage grid, string path)
+    {
+        string outputFileName = $"{path}.tga";
+        string outputFilePath = $"{outputFolderPath}\\{outputFileName}";
+        progressLabel.Invoke(new Action(() => progressLabel.Text = $@"Writing {outputFileName} to file..."));
+        await Task.Delay(1000);
+        await grid.WriteAsync(outputFilePath);
+    }
+
+    private async Task UnpackStitchMap(string startingGroundLevel = "M00", string startingZoomLevel = "L0")
     {
         if (string.IsNullOrEmpty(outputFolderPath)) return;
+        bool zoomLevelReached = false;
         foreach (BinderFile file in mapTileMaskBnd.Files.SkipLast(1))
         {
             string fileName = Path.GetFileName(file.Name);
@@ -160,60 +170,38 @@ public partial class ERMapGenerator : Form
                 continue;
             }
             SetFlags(0);
-            int previousZoomLevel = 0;
-            int gridSizeX = 41;
-            int gridSizeY = 41;
+            int gridSizeX = GetZoomLevels().GetValueOrDefault(startingZoomLevel);
             const int tileSize = 256;
-            MagickImage grid = CreateMapGrid(gridSizeX, gridSizeY, tileSize);
+            MagickImage grid = CreateMapGrid(gridSizeX, gridSizeX, tileSize);
             string rawOutputFileName = "";
-            foreach (BinderFile tpfFile in mapTileTpfBhd.Files)
+            for (int i = 0; i < mapTileTpfBhd.Files.Count; i++)
             {
+                BinderFile tpfFile = mapTileTpfBhd.Files[i];
                 TPF.Texture texFile = TPF.Read(tpfFile.Bytes).Textures[0];
-                if (string.IsNullOrEmpty(rawOutputFileName)) rawOutputFileName = texFile.Name;
                 string[] tokens = texFile.Name.Split('_');
+                if (tokens[4] == "00" && tokens[5] == "00") rawOutputFileName = texFile.Name;
                 if (!(tokens[0].ToLower() == "menu" && tokens[1].ToLower() == "maptile")) continue;
                 progressLabel.Invoke(new Action(() => progressLabel.Text = $@"Parsing texture file {texFile.Name}..."));
-                int zoomLevel = int.Parse(tokens[3][1..]);
-                if (zoomLevel != previousZoomLevel)
+                string groundLevel = tokens[2];
+                string zoomLevel = tokens[3];
+                if (zoomLevel != startingZoomLevel && zoomLevelReached)
                 {
-                    SetFlags(zoomLevel);
-                    string outputFileName = $"{rawOutputFileName}.tga";
-                    string outputFilePath = $"{outputFolderPath}\\{outputFileName}";
-                    progressLabel.Invoke(new Action(() => progressLabel.Text = $@"Writing {outputFileName} to file..."));
-                    await Task.Delay(1000);
-                    await grid.WriteAsync(outputFilePath);
-                    rawOutputFileName = texFile.Name;
-                    if (rawOutputFileName.Contains("L0")) return;
-                    previousZoomLevel = zoomLevel;
-                    gridSizeX = zoomLevel switch
-                    {
-                        0 => 41,
-                        1 => 31,
-                        2 => 11,
-                        3 => 6,
-                        4 => 2,
-                        _ => gridSizeX
-                    };
-                    gridSizeY = zoomLevel switch
-                    {
-                        0 => 41,
-                        1 => 31,
-                        2 => 11,
-                        3 => 6,
-                        4 => 2,
-                        _ => gridSizeX
-                    };
-                    grid = CreateMapGrid(gridSizeX, gridSizeY, tileSize);
+                    await WriteStitchedMap(grid, rawOutputFileName);
+                    return;
                 }
+                if (groundLevel != startingGroundLevel || zoomLevel != startingZoomLevel) continue;
+                zoomLevelReached = true;
                 int x = int.Parse(tokens[4]);
                 int y = int.Parse(tokens[5]);
                 int flag = int.Parse(tokens[6], NumberStyles.HexNumber);
+                /*
                 long[] filteredFlags =
                 {
                     Flags[x, y] & ~(1 << 17),
                     Flags[x, y] & ~(1 << 18)
                 };
-                if (filteredFlags.All(i => i != flag) && zoomLevel < 3) continue;
+                if (filteredFlags.All(i => i != flag) && zoomLevel != "L3") continue;
+                */
                 MagickImage tile = new(texFile.Bytes);
                 tile.Resize(tileSize, tileSize);
                 tile.BorderColor = MagickColors.Black;
@@ -237,12 +225,31 @@ public partial class ERMapGenerator : Form
                 MagickImage flagText = new($"caption:0x{flag:X8}", textSettings);
                 grid.Composite(coordinateText, adjustedX + 10, adjustedY + 15, CompositeOperator.Over);
                 grid.Composite(flagText, adjustedX + 10, adjustedY + 40, CompositeOperator.Over);
+                if (i != mapTileTpfBhd.Files.Count - 1) continue;
+                await WriteStitchedMap(grid, rawOutputFileName);
+                return;
             }
+        }
+    }
+
+    private async Task GenerateMaps()
+    {
+        List<string> groundLevels = GetGroundLevels();
+        List<string> zoomLevels = GetZoomLevels().Keys.ToList();
+        int groundLevelIndex = groundLevelComboBox.Invoke(() => groundLevelComboBox.SelectedIndex);
+        int zoomLevelIndex = zoomLevelComboBox.Invoke(() => zoomLevelComboBox.SelectedIndex);
+        groundLevels = GetFilteredGroundLevels(groundLevelIndex, groundLevels).ToList();
+        zoomLevels = GetFilteredZoomLevels(zoomLevelIndex, zoomLevels).ToList();
+        foreach (string groundLevel in groundLevels)
+        {
+            foreach (string zoomLevel in zoomLevels)
+                await UnpackStitchMap(groundLevel, zoomLevel);
         }
     }
 
     private void RepackTileMap()
     {
+        // TODO: Function
         List<string> groundLevels = GetGroundLevels();
         List<string> zoomLevels = GetZoomLevels().Keys.ToList();
         int groundLevelIndex = groundLevelComboBox.Invoke(() => groundLevelComboBox.SelectedIndex);
@@ -266,44 +273,77 @@ public partial class ERMapGenerator : Form
         return zoomLevelIndex == 0 ? zoomLevels.Skip(1) : new[] { zoomLevels[zoomLevelIndex] };
     }
 
+    // TODO: We'll need to figure out how to generate a custom map tile mask BND...
+
     private void ExportTiles(string groundLevel, string zoomLevel)
     {
         int gridSize = GetZoomLevels().GetValueOrDefault(zoomLevel);
         const int tileSize = 256;
-        string outputDirectory = Path.Combine(Path.GetDirectoryName(mapImageFilePathLabel.Text)!, "output");
+        string outputDirectory = Path.Combine(Path.GetDirectoryName(mapImageFilePathLabel.Text)!, "mod\\menu");
         if (!Directory.Exists(outputDirectory)) Directory.CreateDirectory(outputDirectory);
-        using Bitmap mapImage = new(savedMapImage);
-        for (int x = 0; x < gridSize; x++)
+        // TODO: Cleanup
+        Bitmap mapImage;
+        using (Bitmap originalMapImage = new(savedMapImage))
         {
-            for (int y = 0; y < gridSize; y++)
+            Size targetSize = GetTargetSizeForZoomLevel(zoomLevel);
+            mapImage = originalMapImage.Size != targetSize ? new Bitmap(originalMapImage, targetSize) : new Bitmap(originalMapImage);
+        }
+        BXF4 mapTileBhd = new();
+        string bhdPath = Path.Combine(outputDirectory, "71_maptile.tpfbhd");
+        string bdtPath = bhdPath.Replace(".tpfbhd", ".tpfbdt");
+        using (mapImage)
+        {
+            for (int x = 0; x < gridSize; x++)
             {
-                Rectangle tileRect = new(
-                    x * tileSize,
-                    y * tileSize,
-                    Math.Min(tileSize, mapImage.Width - x * tileSize),
-                    Math.Min(tileSize, mapImage.Height - y * tileSize)
-                );
-                using Bitmap tileImage = new(tileSize, tileSize);
-                using (Graphics g = Graphics.FromImage(tileImage))
+                for (int y = 0; y < gridSize; y++)
                 {
-                    g.Clear(Color.Transparent);
-                    g.DrawImage(mapImage, new Rectangle(0, 0, tileSize, tileSize), tileRect, GraphicsUnit.Pixel);
+                    Rectangle tileRect = new(
+                        x * tileSize,
+                        y * tileSize,
+                        Math.Min(tileSize, mapImage.Width - x * tileSize),
+                        Math.Min(tileSize, mapImage.Height - y * tileSize)
+                    );
+                    using Bitmap tileImage = new(tileSize, tileSize);
+                    using (Graphics g = Graphics.FromImage(tileImage))
+                    {
+                        g.Clear(Color.Transparent);
+                        g.DrawImage(mapImage, new Rectangle(0, 0, tileSize, tileSize), tileRect, GraphicsUnit.Pixel);
+                    }
+                    string tileXPos = x.ToString("D2");
+                    string tileYPos = (gridSize - y - 1).ToString("D2");
+                    string tileName = $"MENU_MapTile_{groundLevel}_{zoomLevel}_{tileXPos}_{tileYPos}_00000000";
+                    progressLabel.Invoke(() => progressLabel.Text = $@"Writing {tileName}...");
+                    TPF.Texture texture = new();
+                    byte[] bytes = (byte[])new ImageConverter().ConvertTo(tileImage, typeof(byte[]))!;
+                    IMagickImage<ushort> image = MagickImage.FromBase64(Convert.ToBase64String(bytes));
+                    texture.Bytes = ConvertMagickImageToDDS(image);
+                    texture.Name = tileName;
+                    TPF tpf = new();
+                    tpf.Textures.Add(texture);
+                    byte[] tpfBytes = tpf.Write();
+                    BinderFile file = new()
+                    {
+                        Name = $"71_MapTile\\{tileName}.tpf.dcx",
+                        Bytes = tpfBytes
+                    };
+                    mapTileBhd.Files.Add(file);
                 }
-                string tileXPos = x.ToString("D2");
-                string tileYPos = (gridSize - y - 1).ToString("D2");
-                string tileName = $"MENU_MapTile_{groundLevel}_{zoomLevel}_{tileXPos}_{tileYPos}_00000000";
-                progressLabel.Invoke(() => progressLabel.Text = $@"Exporting {tileName}.tpf.dcx...");
-                string tileFileName = Path.Combine(outputDirectory, $"{tileName}.tpf.dcx");
-                TPF.Texture texture = new();
-                byte[] bytes = (byte[])new ImageConverter().ConvertTo(tileImage, typeof(byte[]))!;
-                IMagickImage<ushort> image = MagickImage.FromBase64(Convert.ToBase64String(bytes));
-                texture.Bytes = ConvertMagickImageToDDS(image);
-                texture.Name = tileName;
-                TPF tpf = new();
-                tpf.Textures.Add(texture);
-                tpf.Write(tileFileName);
             }
         }
+        mapTileBhd.Write(bhdPath, bdtPath);
+    }
+
+    private static Size GetTargetSizeForZoomLevel(string zoomLevel)
+    {
+        return zoomLevel switch
+        {
+            "L0" => new Size(10496, 10496),
+            "L1" => new Size(8192, 8192),
+            "L2" => new Size(4096, 4096),
+            "L3" => new Size(1536, 1536),
+            "L4" => new Size(512, 512),
+            _ => new Size(10496, 10496)
+        };
     }
 
     private void ToggleAllControls(bool wantsEnabled)
