@@ -442,7 +442,6 @@ public partial class ERMapGenerator : Form
 
     private void RefreshMapImage(bool resetPosition = false)
     {
-        // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
         if (savedMapImage == null) return;
         mapDisplayPictureBox.Image?.Dispose();
         mapDisplayPictureBox.Image = new Bitmap(savedMapImage);
