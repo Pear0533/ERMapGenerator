@@ -41,6 +41,7 @@
             automateButton = new Button();
             automationModeTabControl = new TabControl();
             tabPage2 = new TabPage();
+            drawTileDebugInfoCheckBox = new CheckBox();
             outputFolderGroupBox = new GroupBox();
             label7 = new Label();
             outputFolderPathLabel = new Label();
@@ -181,6 +182,7 @@
             // 
             // tabPage2
             // 
+            tabPage2.Controls.Add(drawTileDebugInfoCheckBox);
             tabPage2.Controls.Add(outputFolderGroupBox);
             tabPage2.Controls.Add(gameModFolderGroupBox);
             tabPage2.Location = new Point(4, 24);
@@ -190,6 +192,16 @@
             tabPage2.TabIndex = 1;
             tabPage2.Text = "Unpack/Stitch Map";
             tabPage2.UseVisualStyleBackColor = true;
+            // 
+            // drawTileDebugInfoCheckBox
+            // 
+            drawTileDebugInfoCheckBox.AutoSize = true;
+            drawTileDebugInfoCheckBox.Location = new Point(4, 157);
+            drawTileDebugInfoCheckBox.Name = "drawTileDebugInfoCheckBox";
+            drawTileDebugInfoCheckBox.Size = new Size(136, 19);
+            drawTileDebugInfoCheckBox.TabIndex = 17;
+            drawTileDebugInfoCheckBox.Text = "Draw Tile Debug Info";
+            drawTileDebugInfoCheckBox.UseVisualStyleBackColor = true;
             // 
             // outputFolderGroupBox
             // 
@@ -386,6 +398,7 @@
             mapConfigurationGroupBox.PerformLayout();
             automationModeTabControl.ResumeLayout(false);
             tabPage2.ResumeLayout(false);
+            tabPage2.PerformLayout();
             outputFolderGroupBox.ResumeLayout(false);
             outputFolderGroupBox.PerformLayout();
             gameModFolderGroupBox.ResumeLayout(false);
@@ -428,5 +441,6 @@
         private Label label7;
         private Label outputFolderPathLabel;
         private Button outputFolderButton;
+        private CheckBox drawTileDebugInfoCheckBox;
     }
 }

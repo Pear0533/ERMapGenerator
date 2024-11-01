@@ -24,6 +24,7 @@ public partial class ERMapGenerator : Form
     private static bool isDraggingMapDisplay;
     private static int mapDisplayXPos;
     private static int mapDisplayYPos;
+    private static BXF4 mapTileBhd = new();
     private float mapDisplayMinZoomLevel = -1;
     private float mapDisplayZoomLevel;
     private string mapImageFilePath = "";
@@ -84,11 +85,12 @@ public partial class ERMapGenerator : Form
         mapTileMaskBndPath = gameModFolderFiles.FirstOrDefault(i => i.Contains(".mtmskbnd.dcx")) ?? "";
         mapTileTpfBhdPath = gameModFolderFiles.FirstOrDefault(i => i.Contains("71_maptile.tpfbhd")) ?? "";
         mapTileTpfBtdPath = mapTileTpfBhdPath.Replace(".tpfbhd", ".tpfbdt");
-        if (!ResourceExists(mapTileMaskBndPath, "map tile mask BND")) return;
+        // if (!ResourceExists(mapTileMaskBndPath, "map tile mask BND")) return;
         if (!ResourceExists(mapTileTpfBhdPath, "map tile TPF BHD")) return;
         if (!ResourceExists(mapTileTpfBtdPath, "map tile TPF BTD")) return;
-        gameModFolderPathLabel.Text = Path.GetDirectoryName(mapTileMaskBndPath);
-        mapTileMaskBnd = BND4.Read(mapTileMaskBndPath);
+        gameModFolderPathLabel.Text = Path.GetDirectoryName(mapTileTpfBhdPath);
+        if (!string.IsNullOrEmpty(mapTileMaskBndPath))
+            mapTileMaskBnd = BND4.Read(mapTileMaskBndPath);
         mapTileTpfBhd = BXF4.Read(mapTileTpfBhdPath, mapTileTpfBtdPath);
         outputFolderGroupBox.Enabled = true;
     }
@@ -99,6 +101,8 @@ public partial class ERMapGenerator : Form
         if (dialog.ShowDialog() != DialogResult.OK) return;
         outputFolderPath = dialog.SelectedPath;
         outputFolderPathLabel.Text = outputFolderPath;
+        // TODO: Cleanup
+        drawTileDebugInfoCheckBox.Enabled = true;
         PopulateGroundLevels();
         PopulateZoomLevels();
     }
@@ -156,59 +160,66 @@ public partial class ERMapGenerator : Form
     {
         if (string.IsNullOrEmpty(outputFolderPath)) return;
         bool zoomLevelReached = false;
-        foreach (BinderFile file in mapTileMaskBnd.Files.SkipLast(1))
+        if (mapTileMaskBnd.Files.Count > 0)
         {
-            string fileName = Path.GetFileName(file.Name);
-            progressLabel.Invoke(new Action(() => progressLabel.Text = $@"Parsing map tile mask {fileName}..."));
-            await Task.Delay(1000);
-            XmlDocument doc = new();
-            doc.Load(new MemoryStream(file.Bytes));
-            MapTileMaskRoot = doc.LastChild;
-            if (MapTileMaskRoot == null)
+            BinderFile? file = mapTileMaskBnd.Files.Find(i => i.Name.Contains(startingGroundLevel));
+            if (file != null)
             {
-                ShowInformationDialog($@"{fileName} contains no root XML node.");
-                continue;
+                string fileName = Path.GetFileName(file.Name);
+                progressLabel.Invoke(new Action(() => progressLabel.Text = $@"Parsing map tile mask {fileName}..."));
+                await Task.Delay(1000);
+                XmlDocument doc = new();
+                doc.Load(new MemoryStream(file.Bytes));
+                MapTileMaskRoot = doc.LastChild;
+                if (MapTileMaskRoot == null) ShowInformationDialog($@"{fileName} contains no root XML node.");
+                // TODO: We should be able to use int.Parse(startingZoomLevel[1..])...
+                else SetFlags(0);
             }
-            SetFlags(0);
-            int gridSizeX = GetZoomLevels().GetValueOrDefault(startingZoomLevel);
-            const int tileSize = 256;
-            MagickImage grid = CreateMapGrid(gridSizeX, gridSizeX, tileSize);
-            string rawOutputFileName = "";
-            for (int i = 0; i < mapTileTpfBhd.Files.Count; i++)
+        }
+        int gridSizeX = GetZoomLevels().GetValueOrDefault(startingZoomLevel);
+        const int tileSize = 256;
+        MagickImage grid = CreateMapGrid(gridSizeX, gridSizeX, tileSize);
+        string rawOutputFileName = "";
+        for (int i = 0; i < mapTileTpfBhd.Files.Count; i++)
+        {
+            BinderFile tpfFile = mapTileTpfBhd.Files[i];
+            TPF.Texture texFile = TPF.Read(tpfFile.Bytes).Textures[0];
+            string[] tokens = texFile.Name.Split('_');
+            if (tokens[4] == "00" && tokens[5] == "00") rawOutputFileName = texFile.Name;
+            if (!(tokens[0].ToLower() == "menu" && tokens[1].ToLower() == "maptile")) continue;
+            progressLabel.Invoke(new Action(() => progressLabel.Text = $@"Parsing texture file {texFile.Name}..."));
+            string groundLevel = tokens[2];
+            string zoomLevel = tokens[3];
+            if (zoomLevel != startingZoomLevel && zoomLevelReached)
             {
-                BinderFile tpfFile = mapTileTpfBhd.Files[i];
-                TPF.Texture texFile = TPF.Read(tpfFile.Bytes).Textures[0];
-                string[] tokens = texFile.Name.Split('_');
-                if (tokens[4] == "00" && tokens[5] == "00") rawOutputFileName = texFile.Name;
-                if (!(tokens[0].ToLower() == "menu" && tokens[1].ToLower() == "maptile")) continue;
-                progressLabel.Invoke(new Action(() => progressLabel.Text = $@"Parsing texture file {texFile.Name}..."));
-                string groundLevel = tokens[2];
-                string zoomLevel = tokens[3];
-                if (zoomLevel != startingZoomLevel && zoomLevelReached)
-                {
-                    await WriteStitchedMap(grid, rawOutputFileName);
-                    return;
-                }
-                if (groundLevel != startingGroundLevel || zoomLevel != startingZoomLevel) continue;
-                zoomLevelReached = true;
-                int x = int.Parse(tokens[4]);
-                int y = int.Parse(tokens[5]);
-                int flag = int.Parse(tokens[6], NumberStyles.HexNumber);
-                /*
-                long[] filteredFlags =
-                {
-                    Flags[x, y] & ~(1 << 17),
-                    Flags[x, y] & ~(1 << 18)
-                };
-                if (filteredFlags.All(i => i != flag) && zoomLevel != "L3") continue;
-                */
-                MagickImage tile = new(texFile.Bytes);
-                tile.Resize(tileSize, tileSize);
+                await WriteStitchedMap(grid, rawOutputFileName);
+                return;
+            }
+            if (groundLevel != startingGroundLevel || zoomLevel != startingZoomLevel) continue;
+            zoomLevelReached = true;
+            int x = int.Parse(tokens[4]);
+            int y = int.Parse(tokens[5]);
+            int flag = int.Parse(tokens[6], NumberStyles.HexNumber);
+            /*
+            long[] filteredFlags =
+            {
+                Flags[x, y] & ~(1 << 17),
+                Flags[x, y] & ~(1 << 18)
+            };
+            if (filteredFlags.All(i => i != flag) && zoomLevel != "L3") continue;
+            */
+            MagickImage tile = new(texFile.Bytes);
+            tile.Resize(tileSize, tileSize);
+            if (drawTileDebugInfoCheckBox.Checked)
+            {
                 tile.BorderColor = MagickColors.Black;
                 tile.Border(5);
-                int adjustedX = x * tileSize;
-                int adjustedY = grid.Height - y * tileSize - tileSize;
-                grid.Draw(new Drawables().Composite(adjustedX, adjustedY, tile));
+            }
+            int adjustedX = x * tileSize;
+            int adjustedY = grid.Height - y * tileSize - tileSize;
+            grid.Draw(new Drawables().Composite(adjustedX, adjustedY, tile));
+            if (drawTileDebugInfoCheckBox.Checked)
+            {
                 MagickReadSettings textSettings = new()
                 {
                     Font = "Calibri",
@@ -225,10 +236,10 @@ public partial class ERMapGenerator : Form
                 MagickImage flagText = new($"caption:0x{flag:X8}", textSettings);
                 grid.Composite(coordinateText, adjustedX + 10, adjustedY + 15, CompositeOperator.Over);
                 grid.Composite(flagText, adjustedX + 10, adjustedY + 40, CompositeOperator.Over);
-                if (i != mapTileTpfBhd.Files.Count - 1) continue;
-                await WriteStitchedMap(grid, rawOutputFileName);
-                return;
             }
+            if (i != mapTileTpfBhd.Files.Count - 1) continue;
+            await WriteStitchedMap(grid, rawOutputFileName);
+            return;
         }
     }
 
@@ -261,6 +272,7 @@ public partial class ERMapGenerator : Form
             foreach (string zoomLevel in zoomLevels)
                 ExportTiles(groundLevel, zoomLevel);
         }
+        mapTileBhd = new BXF4();
     }
 
     private static IEnumerable<string> GetFilteredGroundLevels(int groundLevelIndex, IReadOnlyList<string> groundLevels)
@@ -288,7 +300,6 @@ public partial class ERMapGenerator : Form
             Size targetSize = GetTargetSizeForZoomLevel(zoomLevel);
             mapImage = originalMapImage.Size != targetSize ? new Bitmap(originalMapImage, targetSize) : new Bitmap(originalMapImage);
         }
-        BXF4 mapTileBhd = new();
         string bhdPath = Path.Combine(outputDirectory, "71_maptile.tpfbhd");
         string bdtPath = bhdPath.Replace(".tpfbhd", ".tpfbdt");
         using (mapImage)
@@ -318,7 +329,8 @@ public partial class ERMapGenerator : Form
                     IMagickImage<ushort> image = MagickImage.FromBase64(Convert.ToBase64String(bytes));
                     texture.Bytes = ConvertMagickImageToDDS(image);
                     texture.Name = tileName;
-                    TPF tpf = new();
+                    texture.Format = 0x66;
+                    TPF tpf = new() { Compression = DCX.Type.DCX_KRAK };
                     tpf.Textures.Add(texture);
                     byte[] tpfBytes = tpf.Write();
                     BinderFile file = new()
@@ -330,6 +342,9 @@ public partial class ERMapGenerator : Form
                 }
             }
         }
+        mapTileBhd.Files = mapTileBhd.Files.OrderBy(i => i.Name).ToList();
+        for (int i = 0; i < mapTileBhd.Files.Count; i++)
+            mapTileBhd.Files[i].ID = i;
         mapTileBhd.Write(bhdPath, bdtPath);
     }
 
@@ -338,10 +353,10 @@ public partial class ERMapGenerator : Form
         return zoomLevel switch
         {
             "L0" => new Size(10496, 10496),
-            "L1" => new Size(8192, 8192),
-            "L2" => new Size(4096, 4096),
+            "L1" => new Size(7936, 7936),
+            "L2" => new Size(2816, 2816),
             "L3" => new Size(1536, 1536),
-            "L4" => new Size(512, 512),
+            "L4" => new Size(768, 768),
             _ => new Size(10496, 10496)
         };
     }
@@ -353,9 +368,6 @@ public partial class ERMapGenerator : Form
         automationModeTabControl.Enabled = wantsEnabled;
         automateButton.Enabled = wantsEnabled;
     }
-
-    // TODO: Account for setting individual ground and zoom levels when stitching a map...
-    // TODO: Implement the ability to use all ground and zoom levels when stitching a map...
 
     private async void AutomateButton_Click(object sender, EventArgs e)
     {
@@ -404,8 +416,6 @@ public partial class ERMapGenerator : Form
         groundLevelComboBox.SelectedIndex = 0;
     }
 
-    // TODO: Implement autosizing if the map image doesn't match the zoom level...
-
     private Dictionary<string, int> GetZoomLevels()
     {
         Dictionary<string, int> dict = new()
@@ -415,7 +425,7 @@ public partial class ERMapGenerator : Form
             { "L1", 31 },
             { "L2", 11 },
             { "L3", 6 },
-            { "L4", 2 }
+            { "L4", 3 }
         };
         if (groundLevelComboBox
             .Invoke(() =>
@@ -526,6 +536,7 @@ public partial class ERMapGenerator : Form
         mapDisplayGroupBox.Enabled = false;
         mapConfigurationGroupBox.Enabled = false;
         outputFolderGroupBox.Enabled = false;
+        drawTileDebugInfoCheckBox.Enabled = false;
         automateButton.Enabled = false;
     }
 
