@@ -119,3 +119,4 @@ C:\Users\Isaac Fisher\Downloads\ERMapGenerator\obj\Debug\net7.0-windows\ref\ERMa
 C:\Users\Isaac Fisher\Downloads\ERMapGenerator\bin\Debug\net7.0-windows\DdsFileTypePlus.dll
 C:\Users\Isaac Fisher\Downloads\ERMapGenerator\bin\Debug\net7.0-windows\PaintDotNet.Base.dll
 C:\Users\Isaac Fisher\Downloads\ERMapGenerator\bin\Debug\net7.0-windows\DdsFileTypePlusIO_x64.dll
+C:\Users\Isaac Fisher\Downloads\ERMapGenerator\bin\Debug\net7.0-windows\extras.json
