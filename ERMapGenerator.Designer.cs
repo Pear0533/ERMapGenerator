@@ -122,6 +122,7 @@
             zoomLevelComboBox.Name = "zoomLevelComboBox";
             zoomLevelComboBox.Size = new Size(125, 23);
             zoomLevelComboBox.TabIndex = 7;
+            zoomLevelComboBox.SelectedIndexChanged += zoomLevelComboBox_SelectedIndexChanged;
             // 
             // label2
             // 
