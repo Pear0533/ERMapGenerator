@@ -1,6 +1,4 @@
 using System.Globalization;
-using System.Reflection;
-using System.Text.Json.Nodes;
 using System.Xml;
 using DdsFileTypePlus;
 using ImageMagick;
@@ -27,7 +25,6 @@ public partial class ERMapGenerator : Form
     private static int mapDisplayXPos;
     private static int mapDisplayYPos;
     private static BXF4 mapTileBhd = new();
-    private JsonNode? extrasJson;
     private float mapDisplayMinZoomLevel = -1;
     private float mapDisplayZoomLevel;
     private string mapImageFilePath = "";
@@ -88,12 +85,11 @@ public partial class ERMapGenerator : Form
         mapTileMaskBndPath = gameModFolderFiles.FirstOrDefault(i => i.Contains(".mtmskbnd.dcx")) ?? "";
         mapTileTpfBhdPath = gameModFolderFiles.FirstOrDefault(i => i.Contains("71_maptile.tpfbhd")) ?? "";
         mapTileTpfBtdPath = mapTileTpfBhdPath.Replace(".tpfbhd", ".tpfbdt");
-        // if (!ResourceExists(mapTileMaskBndPath, "map tile mask BND")) return;
+        if (!ResourceExists(mapTileMaskBndPath, "map tile mask BND")) return;
         if (!ResourceExists(mapTileTpfBhdPath, "map tile TPF BHD")) return;
         if (!ResourceExists(mapTileTpfBtdPath, "map tile TPF BTD")) return;
         gameModFolderPathLabel.Text = Path.GetDirectoryName(mapTileTpfBhdPath);
-        if (!string.IsNullOrEmpty(mapTileMaskBndPath))
-            mapTileMaskBnd = BND4.Read(mapTileMaskBndPath);
+        mapTileMaskBnd = BND4.Read(mapTileMaskBndPath);
         mapTileTpfBhd = BXF4.Read(mapTileTpfBhdPath, mapTileTpfBtdPath);
         outputFolderGroupBox.Enabled = true;
     }
@@ -197,7 +193,6 @@ public partial class ERMapGenerator : Form
             doc.Load(new MemoryStream(file.Bytes));
             MapTileMaskRoot = doc.LastChild;
             if (MapTileMaskRoot == null) ShowInformationDialog($@"{fileName} contains no root XML node.");
-            // TODO: We should be able to use int.Parse(startingZoomLevel[1..])...
             else SetFlags(0);
         }
     }
@@ -206,13 +201,11 @@ public partial class ERMapGenerator : Form
     {
         if (string.IsNullOrEmpty(outputFolderPath)) return;
         bool zoomLevelReached = false;
-        if (mapTileMaskBnd.Files.Count > 0) await ReadMapTileMaskRoot(startingGroundLevel);
+        await ReadMapTileMaskRoot(startingGroundLevel);
         int gridSizeX = GetZoomLevels().GetValueOrDefault(startingZoomLevel);
         const int tileSize = 256;
         MagickImage grid = CreateMapGrid(gridSizeX, gridSizeX, tileSize);
         string rawOutputFileName = "";
-
-        // TODO: WIP
         await ReadMapTileMaskRoot(startingGroundLevel);
         SetFlagsForExportTiles();
         for (int i = 0; i < mapTileTpfBhd.Files.Count; i++)
@@ -313,12 +306,6 @@ public partial class ERMapGenerator : Form
         return zoomLevelIndex == 0 ? zoomLevels.Skip(1) : new[] { zoomLevels[zoomLevelIndex] };
     }
 
-    private void ReadExtrasJSON()
-    {
-        string extrasJsonFilePath = $"{Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)}\\extras.json";
-        extrasJson = JsonNode.Parse(File.ReadAllText(extrasJsonFilePath));
-    }
-
     private void WriteTile(IDisposable tileImage, string tileName)
     {
         progressLabel.Invoke(() => progressLabel.Text = $@"Writing {tileName}...");
@@ -347,19 +334,10 @@ public partial class ERMapGenerator : Form
         if (!Directory.Exists(outputDirectory)) Directory.CreateDirectory(outputDirectory);
         // TODO: Cleanup
         using Bitmap mapImage = new(savedMapImage);
-        /*
-        using (Bitmap originalMapImage = new(savedMapImage))
-        {
-            Size targetSize = GetTargetSizeForZoomLevel(zoomLevel);
-            mapImage = originalMapImage.Size != targetSize ? new Bitmap(originalMapImage, targetSize) : new Bitmap(originalMapImage);
-        }
-        */
         string bhdPath = Path.Combine(outputDirectory, "71_maptile.tpfbhd");
         string bdtPath = bhdPath.Replace(".tpfbhd", ".tpfbdt");
-        // TODO: WIP
         await ReadMapTileMaskRoot(groundLevel);
         SetFlagsForExportTiles();
-        if (zoomLevel is "L3" or "L4") ReadExtrasJSON();
         for (int x = 0; x < gridSize; x++)
         {
             for (int y = 0; y < gridSize; y++)
@@ -379,47 +357,16 @@ public partial class ERMapGenerator : Form
                 string tileXPos = x.ToString("D2");
                 string tileYPos = (gridSize - y - 1).ToString("D2");
                 string tileName = $"MENU_MapTile_{groundLevel}_{zoomLevel}_{tileXPos}_{tileYPos}";
-                if (zoomLevel != "L3" && zoomLevel != "L4")
-                {
-                    string bitFlags = Flags[int.Parse(zoomLevel[1..]), x, gridSize - y - 1].ToString("X8");
-                    if (bitFlags == "FFFFFFFF") continue;
-                    string newTileName = $"{tileName}_{bitFlags}";
-                    WriteTile(tileImage, newTileName);
-                }
-                else
-                {
-                    JsonNode? bitFlagsNode = extrasJson?[$"{groundLevel},{zoomLevel}"]?[$"{tileXPos},{tileYPos}"];
-                    List<string> bitFlagsList = bitFlagsNode?.AsArray().Select(i => i?.ToString() ?? "").ToList() ?? new List<string>();
-                    foreach (string? bitFlags in bitFlagsList.Where(flag => !string.IsNullOrEmpty(flag)))
-                    {
-                        string newTileName = $"{tileName}_{bitFlags}";
-                        Console.WriteLine(newTileName);
-                        WriteTile(tileImage, newTileName);
-                    }
-                }
+                string bitFlags = Flags[int.Parse(zoomLevel[1..]), x, gridSize - y - 1].ToString("X8");
+                if (bitFlags == "FFFFFFFF") continue;
+                string newTileName = $"{tileName}_{bitFlags}";
+                WriteTile(tileImage, newTileName);
             }
         }
         mapTileBhd.Files = mapTileBhd.Files.OrderBy(i => i.Name).ToList();
         for (int i = 0; i < mapTileBhd.Files.Count; i++)
             mapTileBhd.Files[i].ID = i;
         mapTileBhd.Write(bhdPath, bdtPath);
-    }
-
-    // TODO: Implement autosizing feature when using all zoom levels...
-
-    private static Size GetTargetSizeForZoomLevel(string zoomLevel)
-    {
-        return zoomLevel switch
-        {
-            "L0" => new Size(10496, 10496),
-            "L1" => new Size(7936, 7936),
-            // TODO: WIP
-            "L2" => new Size(2816, 2816),
-            // These aren't used by M00...
-            // "L3" => new Size(1536, 1536),
-            // "L4" => new Size(768, 768),
-            _ => new Size(10496, 10496)
-        };
     }
 
     private void ToggleAllControls(bool wantsEnabled)
@@ -459,7 +406,6 @@ public partial class ERMapGenerator : Form
             "M00",
             "M01",
             "M10"
-            // "M11"
         };
     }
 
@@ -472,12 +418,11 @@ public partial class ERMapGenerator : Form
         groundLevels[1] += " (Overworld)";
         groundLevels[2] += " (Underworld)";
         groundLevels[3] += " (DLC)";
-        // groundLevels[4] += " (Unused)";
         groundLevels.ForEach(i => groundLevelComboBox.Items.Add(i));
         groundLevelComboBox.SelectedIndex = 0;
     }
 
-    private Dictionary<string, int> GetZoomLevels()
+    private static Dictionary<string, int> GetZoomLevels()
     {
         Dictionary<string, int> dict = new()
         {
@@ -485,17 +430,7 @@ public partial class ERMapGenerator : Form
             { "L0", 41 },
             { "L1", 31 },
             { "L2", 11 }
-            // { "L3", 6 },
-            // { "L4", 3 }
         };
-        /*
-        if (groundLevelComboBox
-            .Invoke(() =>
-                groundLevelComboBox.SelectedIndex != 2))
-            return dict;
-        dict.Remove("L3");
-        dict.Remove("L4");
-        */
         return dict;
     }
 
@@ -548,7 +483,6 @@ public partial class ERMapGenerator : Form
             Title = @"Select Map DDS Image"
         };
         if (dialog.ShowDialog() != DialogResult.OK) return;
-
         // TODO: Function
         string[] mapImageFolderFiles = GetAllFolderFiles(Path.GetDirectoryName(dialog.FileName) ?? "");
         mapTileMaskBndPath = mapImageFolderFiles.FirstOrDefault(i => i.Contains(".mtmskbnd.dcx")) ?? "";
