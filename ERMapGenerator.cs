@@ -102,6 +102,7 @@ public partial class ERMapGenerator : Form
         outputFolderPathLabel.Text = outputFolderPath;
         // TODO: Cleanup
         drawTileDebugInfoCheckBox.Enabled = true;
+        if (HasPopulatedGroundAndZoomLevels()) return;
         PopulateGroundLevels();
         PopulateZoomLevels();
     }
@@ -296,12 +297,12 @@ public partial class ERMapGenerator : Form
         mapTileBhd = new BXF4();
     }
 
-    private static IEnumerable<string> GetFilteredGroundLevels(int groundLevelIndex, IReadOnlyList<string> groundLevels)
+    private static IEnumerable<string> GetFilteredGroundLevels(int groundLevelIndex, IList<string> groundLevels)
     {
         return groundLevelIndex == 0 ? groundLevels.Skip(1) : new[] { groundLevels[groundLevelIndex] };
     }
 
-    private static IEnumerable<string> GetFilteredZoomLevels(int zoomLevelIndex, IReadOnlyList<string> zoomLevels)
+    private static IEnumerable<string> GetFilteredZoomLevels(int zoomLevelIndex, IList<string> zoomLevels)
     {
         return zoomLevelIndex == 0 ? zoomLevels.Skip(1) : new[] { zoomLevels[zoomLevelIndex] };
     }
@@ -398,31 +399,42 @@ public partial class ERMapGenerator : Form
         mapDisplayPictureBox.SizeMode = PictureBoxSizeMode.AutoSize;
     }
 
-    private static List<string> GetGroundLevels()
+    private List<string> GetGroundLevels()
     {
-        return new List<string>
+        List<string> list = new()
         {
             "All",
             "M00",
             "M01",
             "M10"
         };
+        if (automationModeTabControl.Invoke(() =>
+                automationModeTabControl.SelectedIndex == 1))
+            list.RemoveAt(0);
+        return list;
     }
 
     private void PopulateGroundLevels()
     {
+        int previousItemCount = groundLevelComboBox.Items.Count;
+        int previousSelectedIndex = groundLevelComboBox.SelectedIndex;
         mapConfigurationGroupBox.Enabled = true;
         automateButton.Enabled = true;
         List<string> groundLevels = GetGroundLevels();
         groundLevelComboBox.Items.Clear();
-        groundLevels[1] += " (Overworld)";
-        groundLevels[2] += " (Underworld)";
-        groundLevels[3] += " (DLC)";
-        groundLevels.ForEach(i => groundLevelComboBox.Items.Add(i));
-        groundLevelComboBox.SelectedIndex = 0;
+        List<string> groundLevelKeys = groundLevels.ToList();
+        List<string> suffixes = new() { "", " (Overworld)", " (Underworld)", " (DLC)" };
+        if (automationModeTabControl.SelectedIndex == 1) suffixes.RemoveAt(0);
+        for (int i = 0; i < groundLevelKeys.Count; i++)
+        {
+            if (i < suffixes.Count) groundLevelKeys[i] += suffixes[i];
+            groundLevelComboBox.Items.Add(groundLevelKeys[i]);
+        }
+        if (previousItemCount == 0 || previousSelectedIndex == 0)
+            groundLevelComboBox.SelectedIndex = 0;
     }
 
-    private static Dictionary<string, int> GetZoomLevels()
+    private Dictionary<string, int> GetZoomLevels()
     {
         Dictionary<string, int> dict = new()
         {
@@ -431,21 +443,29 @@ public partial class ERMapGenerator : Form
             { "L1", 31 },
             { "L2", 11 }
         };
+        if (automationModeTabControl.Invoke(() =>
+                automationModeTabControl.SelectedIndex == 1))
+            dict.Remove("All");
         return dict;
     }
 
     private void PopulateZoomLevels()
     {
+        // TODO: Function
+        int previousItemCount = zoomLevelComboBox.Items.Count;
+        int previousSelectedIndex = zoomLevelComboBox.SelectedIndex;
         Dictionary<string, int> zoomLevels = GetZoomLevels();
         zoomLevelComboBox.Items.Clear();
         List<string> zoomLevelKeys = zoomLevels.Keys.ToList();
-        string[] suffixes = { "", " (41x41)", " (31x31)", " (11x11)", " (6x6)", " (3x3)" };
+        List<string> suffixes = new() { "", " (41x41)", " (31x31)", " (11x11)", " (6x6)", " (3x3)" };
+        if (automationModeTabControl.SelectedIndex == 1) suffixes.RemoveAt(0);
         for (int i = 0; i < zoomLevelKeys.Count; i++)
         {
-            if (i < suffixes.Length) zoomLevelKeys[i] += suffixes[i];
+            if (i < suffixes.Count) zoomLevelKeys[i] += suffixes[i];
             zoomLevelComboBox.Items.Add(zoomLevelKeys[i]);
         }
-        zoomLevelComboBox.SelectedIndex = 0;
+        if (previousItemCount == 0 || previousSelectedIndex == 0)
+            zoomLevelComboBox.SelectedIndex = 0;
     }
 
     private void RefreshMapImage(bool resetPosition = false)
@@ -475,6 +495,11 @@ public partial class ERMapGenerator : Form
         return true;
     }
 
+    private bool HasPopulatedGroundAndZoomLevels()
+    {
+        return groundLevelComboBox.Items.Count > 0 && zoomLevelComboBox.Items.Count > 0;
+    }
+
     private void BrowseMapImageButton_Click(object sender, EventArgs e)
     {
         OpenFileDialog dialog = new()
@@ -493,6 +518,7 @@ public partial class ERMapGenerator : Form
         mapImageFilePathLabel.Text = mapImageFilePath;
         mapDisplayOpenMapImageLabel.Visible = false;
         mapDisplayGroupBox.Enabled = true;
+        if (HasPopulatedGroundAndZoomLevels()) return;
         PopulateGroundLevels();
         PopulateZoomLevels();
     }
@@ -594,6 +620,9 @@ public partial class ERMapGenerator : Form
     private void AutomationModeTabControl_SelectedIndexChanged(object sender, EventArgs e)
     {
         RefreshMapImage();
+        if (groundLevelComboBox.Items.Count <= 0 || zoomLevelComboBox.Items.Count <= 0) return;
+        PopulateGroundLevels();
+        PopulateZoomLevels();
     }
 
     private void GroundLevelComboBox_SelectedIndexChanged(object sender, EventArgs e)
