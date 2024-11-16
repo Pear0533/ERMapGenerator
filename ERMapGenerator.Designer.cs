@@ -139,7 +139,6 @@
             groundLevelComboBox.Name = "groundLevelComboBox";
             groundLevelComboBox.Size = new Size(125, 23);
             groundLevelComboBox.TabIndex = 5;
-            groundLevelComboBox.SelectedIndexChanged += GroundLevelComboBox_SelectedIndexChanged;
             // 
             // progressLabel
             // 

@@ -333,6 +333,7 @@ public partial class ERMapGenerator : Form
 
     private async Task ExportTiles(string groundLevel, string zoomLevel)
     {
+        if (savedMapImage == null) return;
         int gridSize = GetZoomLevels().GetValueOrDefault(zoomLevel);
         const int tileSize = 256;
         string outputDirectory = Path.Combine(Path.GetDirectoryName(mapImageFilePathLabel.Text)!, "mod\\menu");
@@ -619,11 +620,6 @@ public partial class ERMapGenerator : Form
         RefreshMapImage();
         if (groundLevelComboBox.Items.Count <= 0 || zoomLevelComboBox.Items.Count <= 0) return;
         PopulateGroundLevels();
-        PopulateZoomLevels();
-    }
-
-    private void GroundLevelComboBox_SelectedIndexChanged(object sender, EventArgs e)
-    {
         PopulateZoomLevels();
     }
 
