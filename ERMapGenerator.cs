@@ -174,7 +174,7 @@ public partial class ERMapGenerator : Form
 
     private async Task WriteStitchedMap(IMagickImage grid, string path)
     {
-        string outputFileName = $"{path}.tga";
+        string outputFileName = $"{path}.dds";
         string outputFilePath = $"{outputFolderPath}\\{outputFileName}";
         progressLabel.Invoke(new Action(() => progressLabel.Text = $@"Writing {outputFileName} to file..."));
         await Task.Delay(1000);
