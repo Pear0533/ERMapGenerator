@@ -417,7 +417,7 @@ public partial class ERMapGenerator : Form
     private void PopulateGroundLevels()
     {
         int previousItemCount = groundLevelComboBox.Items.Count;
-        string previousSelectedItem = groundLevelComboBox.SelectedItem?.ToString() ?? "";
+        int previousSelectedIndex = groundLevelComboBox.SelectedIndex;
         mapConfigurationGroupBox.Enabled = true;
         automateButton.Enabled = true;
         List<string> groundLevels = GetGroundLevels();
@@ -430,9 +430,7 @@ public partial class ERMapGenerator : Form
             if (i < suffixes.Count) groundLevelKeys[i] += suffixes[i];
             groundLevelComboBox.Items.Add(groundLevelKeys[i]);
         }
-        if (previousItemCount == 0
-            || previousSelectedItem == "All"
-            && automationModeTabControl.SelectedIndex == 1)
+        if (previousItemCount == 0 || previousSelectedIndex == 0)
             groundLevelComboBox.SelectedIndex = 0;
     }
 
@@ -455,7 +453,7 @@ public partial class ERMapGenerator : Form
     {
         // TODO: Function
         int previousItemCount = zoomLevelComboBox.Items.Count;
-        string previousSelectedItem = zoomLevelComboBox.SelectedItem?.ToString() ?? "";
+        int previousSelectedIndex = zoomLevelComboBox.SelectedIndex;
         Dictionary<string, int> zoomLevels = GetZoomLevels();
         zoomLevelComboBox.Items.Clear();
         List<string> zoomLevelKeys = zoomLevels.Keys.ToList();
@@ -466,9 +464,7 @@ public partial class ERMapGenerator : Form
             if (i < suffixes.Count) zoomLevelKeys[i] += suffixes[i];
             zoomLevelComboBox.Items.Add(zoomLevelKeys[i]);
         }
-        if (previousItemCount == 0
-            || previousSelectedItem == "All"
-            && automationModeTabControl.SelectedIndex == 1)
+        if (previousItemCount == 0 || previousSelectedIndex == 0)
             zoomLevelComboBox.SelectedIndex = 0;
     }
 
@@ -631,12 +627,7 @@ public partial class ERMapGenerator : Form
 
     private void GroundLevelComboBox_SelectedIndexChanged(object sender, EventArgs e)
     {
-        groundLevelComboBox.SelectedItem = groundLevelComboBox.Items[groundLevelComboBox.SelectedIndex];
-    }
-
-    private void zoomLevelComboBox_SelectedIndexChanged(object sender, EventArgs e)
-    {
-        zoomLevelComboBox.SelectedItem = zoomLevelComboBox.Items[zoomLevelComboBox.SelectedIndex];
+        PopulateZoomLevels();
     }
 
     private class Matrix
