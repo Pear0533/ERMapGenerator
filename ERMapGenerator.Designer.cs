@@ -46,10 +46,6 @@
             label7 = new Label();
             outputFolderPathLabel = new Label();
             outputFolderButton = new Button();
-            gameModFolderGroupBox = new GroupBox();
-            label5 = new Label();
-            gameModFolderPathLabel = new Label();
-            browseGameModFolderButton = new Button();
             tabPage1 = new TabPage();
             mapDisplayGroupBox = new GroupBox();
             mapDisplayOpenMapImageLabel = new Label();
@@ -58,15 +54,19 @@
             label1 = new Label();
             mapImageFilePathLabel = new Label();
             browseMapImageButton = new Button();
+            gameModFolderGroupBox = new GroupBox();
+            label5 = new Label();
+            gameModFolderPathLabel = new Label();
+            browseGameModFolderButton = new Button();
             mapConfigurationGroupBox.SuspendLayout();
             automationModeTabControl.SuspendLayout();
             tabPage2.SuspendLayout();
             outputFolderGroupBox.SuspendLayout();
-            gameModFolderGroupBox.SuspendLayout();
             tabPage1.SuspendLayout();
             mapDisplayGroupBox.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)mapDisplayPictureBox).BeginInit();
             mapImageGroupBox.SuspendLayout();
+            gameModFolderGroupBox.SuspendLayout();
             SuspendLayout();
             // 
             // copyrightInfoStr
@@ -79,7 +79,7 @@
             copyrightInfoStr.Name = "copyrightInfoStr";
             copyrightInfoStr.Size = new Size(174, 15);
             copyrightInfoStr.TabIndex = 1;
-            copyrightInfoStr.Text = "© Pear, 2024 All rights reserved.";
+            copyrightInfoStr.Text = "© Pear, 2025 All rights reserved.";
             // 
             // versionStr
             // 
@@ -172,10 +172,10 @@
             // 
             automationModeTabControl.Controls.Add(tabPage2);
             automationModeTabControl.Controls.Add(tabPage1);
-            automationModeTabControl.Location = new Point(12, 106);
+            automationModeTabControl.Location = new Point(12, 186);
             automationModeTabControl.Name = "automationModeTabControl";
             automationModeTabControl.SelectedIndex = 0;
-            automationModeTabControl.Size = new Size(555, 473);
+            automationModeTabControl.Size = new Size(555, 393);
             automationModeTabControl.TabIndex = 16;
             automationModeTabControl.SelectedIndexChanged += AutomationModeTabControl_SelectedIndexChanged;
             // 
@@ -183,11 +183,10 @@
             // 
             tabPage2.Controls.Add(drawTileDebugInfoCheckBox);
             tabPage2.Controls.Add(outputFolderGroupBox);
-            tabPage2.Controls.Add(gameModFolderGroupBox);
             tabPage2.Location = new Point(4, 24);
             tabPage2.Name = "tabPage2";
             tabPage2.Padding = new Padding(3);
-            tabPage2.Size = new Size(547, 445);
+            tabPage2.Size = new Size(547, 365);
             tabPage2.TabIndex = 1;
             tabPage2.Text = "Unpack/Stitch Map";
             tabPage2.UseVisualStyleBackColor = true;
@@ -195,7 +194,7 @@
             // drawTileDebugInfoCheckBox
             // 
             drawTileDebugInfoCheckBox.AutoSize = true;
-            drawTileDebugInfoCheckBox.Location = new Point(4, 157);
+            drawTileDebugInfoCheckBox.Location = new Point(4, 80);
             drawTileDebugInfoCheckBox.Name = "drawTileDebugInfoCheckBox";
             drawTileDebugInfoCheckBox.Size = new Size(136, 19);
             drawTileDebugInfoCheckBox.TabIndex = 17;
@@ -208,7 +207,7 @@
             outputFolderGroupBox.Controls.Add(label7);
             outputFolderGroupBox.Controls.Add(outputFolderPathLabel);
             outputFolderGroupBox.Controls.Add(outputFolderButton);
-            outputFolderGroupBox.Location = new Point(3, 81);
+            outputFolderGroupBox.Location = new Point(3, 4);
             outputFolderGroupBox.Name = "outputFolderGroupBox";
             outputFolderGroupBox.Size = new Size(541, 72);
             outputFolderGroupBox.TabIndex = 16;
@@ -244,48 +243,6 @@
             outputFolderButton.UseVisualStyleBackColor = true;
             outputFolderButton.Click += OutputFolderButton_Click;
             // 
-            // gameModFolderGroupBox
-            // 
-            gameModFolderGroupBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            gameModFolderGroupBox.Controls.Add(label5);
-            gameModFolderGroupBox.Controls.Add(gameModFolderPathLabel);
-            gameModFolderGroupBox.Controls.Add(browseGameModFolderButton);
-            gameModFolderGroupBox.Location = new Point(3, 3);
-            gameModFolderGroupBox.Name = "gameModFolderGroupBox";
-            gameModFolderGroupBox.Size = new Size(541, 72);
-            gameModFolderGroupBox.TabIndex = 15;
-            gameModFolderGroupBox.TabStop = false;
-            gameModFolderGroupBox.Text = "Game/Mod Folder";
-            // 
-            // label5
-            // 
-            label5.AutoSize = true;
-            label5.Location = new Point(6, 49);
-            label5.Name = "label5";
-            label5.Size = new Size(34, 15);
-            label5.TabIndex = 2;
-            label5.Text = "Path:";
-            // 
-            // gameModFolderPathLabel
-            // 
-            gameModFolderPathLabel.AutoSize = true;
-            gameModFolderPathLabel.Location = new Point(37, 49);
-            gameModFolderPathLabel.Name = "gameModFolderPathLabel";
-            gameModFolderPathLabel.Size = new Size(29, 15);
-            gameModFolderPathLabel.TabIndex = 1;
-            gameModFolderPathLabel.Text = "N/A";
-            // 
-            // browseGameModFolderButton
-            // 
-            browseGameModFolderButton.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            browseGameModFolderButton.Location = new Point(6, 23);
-            browseGameModFolderButton.Name = "browseGameModFolderButton";
-            browseGameModFolderButton.Size = new Size(532, 23);
-            browseGameModFolderButton.TabIndex = 0;
-            browseGameModFolderButton.Text = "Browse";
-            browseGameModFolderButton.UseVisualStyleBackColor = true;
-            browseGameModFolderButton.Click += BrowseGameModFolderButton_Click;
-            // 
             // tabPage1
             // 
             tabPage1.Controls.Add(mapDisplayGroupBox);
@@ -293,7 +250,7 @@
             tabPage1.Location = new Point(4, 24);
             tabPage1.Name = "tabPage1";
             tabPage1.Padding = new Padding(3);
-            tabPage1.Size = new Size(547, 445);
+            tabPage1.Size = new Size(547, 365);
             tabPage1.TabIndex = 0;
             tabPage1.Text = "Repack/Tile Map";
             tabPage1.UseVisualStyleBackColor = true;
@@ -374,6 +331,48 @@
             browseMapImageButton.UseVisualStyleBackColor = true;
             browseMapImageButton.Click += BrowseMapImageButton_Click;
             // 
+            // gameModFolderGroupBox
+            // 
+            gameModFolderGroupBox.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            gameModFolderGroupBox.Controls.Add(label5);
+            gameModFolderGroupBox.Controls.Add(gameModFolderPathLabel);
+            gameModFolderGroupBox.Controls.Add(browseGameModFolderButton);
+            gameModFolderGroupBox.Location = new Point(12, 108);
+            gameModFolderGroupBox.Name = "gameModFolderGroupBox";
+            gameModFolderGroupBox.Size = new Size(555, 72);
+            gameModFolderGroupBox.TabIndex = 15;
+            gameModFolderGroupBox.TabStop = false;
+            gameModFolderGroupBox.Text = "Game/Mod Folder";
+            // 
+            // label5
+            // 
+            label5.AutoSize = true;
+            label5.Location = new Point(6, 49);
+            label5.Name = "label5";
+            label5.Size = new Size(34, 15);
+            label5.TabIndex = 2;
+            label5.Text = "Path:";
+            // 
+            // gameModFolderPathLabel
+            // 
+            gameModFolderPathLabel.AutoSize = true;
+            gameModFolderPathLabel.Location = new Point(37, 49);
+            gameModFolderPathLabel.Name = "gameModFolderPathLabel";
+            gameModFolderPathLabel.Size = new Size(29, 15);
+            gameModFolderPathLabel.TabIndex = 1;
+            gameModFolderPathLabel.Text = "N/A";
+            // 
+            // browseGameModFolderButton
+            // 
+            browseGameModFolderButton.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            browseGameModFolderButton.Location = new Point(6, 23);
+            browseGameModFolderButton.Name = "browseGameModFolderButton";
+            browseGameModFolderButton.Size = new Size(546, 23);
+            browseGameModFolderButton.TabIndex = 0;
+            browseGameModFolderButton.Text = "Browse";
+            browseGameModFolderButton.UseVisualStyleBackColor = true;
+            browseGameModFolderButton.Click += BrowseGameModFolderButton_Click;
+            // 
             // ERMapGenerator
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -381,6 +380,7 @@
             ClientSize = new Size(577, 637);
             Controls.Add(progressLabel);
             Controls.Add(mapConfigurationGroupBox);
+            Controls.Add(gameModFolderGroupBox);
             Controls.Add(label4);
             Controls.Add(automationModeTabControl);
             Controls.Add(versionStr);
@@ -400,13 +400,13 @@
             tabPage2.PerformLayout();
             outputFolderGroupBox.ResumeLayout(false);
             outputFolderGroupBox.PerformLayout();
-            gameModFolderGroupBox.ResumeLayout(false);
-            gameModFolderGroupBox.PerformLayout();
             tabPage1.ResumeLayout(false);
             mapDisplayGroupBox.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)mapDisplayPictureBox).EndInit();
             mapImageGroupBox.ResumeLayout(false);
             mapImageGroupBox.PerformLayout();
+            gameModFolderGroupBox.ResumeLayout(false);
+            gameModFolderGroupBox.PerformLayout();
             ResumeLayout(false);
             PerformLayout();
         }

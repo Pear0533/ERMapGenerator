@@ -9,7 +9,7 @@ namespace ERMapGenerator;
 
 public partial class ERMapGenerator : Form
 {
-    private const string version = "1.2";
+    private const string version = "1.3";
     private const float mapDisplayMaxZoomLevel = 2.0f;
     private const float mapDisplayZoomIncrement = 0.1f;
     private static string gameModFolderPath = "";
@@ -68,7 +68,8 @@ public partial class ERMapGenerator : Form
     private static bool ResourceExists(string path, string dispName)
     {
         bool doesExist = Path.HasExtension(path) && File.Exists(path) || Directory.Exists(path);
-        if (!doesExist) ShowInformationDialog($"The {dispName} could not be found.");
+        if (!doesExist) ShowInformationDialog($"{dispName} wasn't found. "
+            + "Please ensure it's located in the menu folder in your game/mod files.");
         return doesExist;
     }
 
@@ -85,13 +86,14 @@ public partial class ERMapGenerator : Form
         mapTileMaskBndPath = gameModFolderFiles.FirstOrDefault(i => i.Contains(".mtmskbnd.dcx")) ?? "";
         mapTileTpfBhdPath = gameModFolderFiles.FirstOrDefault(i => i.Contains("71_maptile.tpfbhd")) ?? "";
         mapTileTpfBtdPath = mapTileTpfBhdPath.Replace(".tpfbhd", ".tpfbdt");
-        if (!ResourceExists(mapTileMaskBndPath, "map tile mask BND")) return;
-        if (!ResourceExists(mapTileTpfBhdPath, "map tile TPF BHD")) return;
-        if (!ResourceExists(mapTileTpfBtdPath, "map tile TPF BTD")) return;
+        if (!ResourceExists(mapTileMaskBndPath, "71_maptile.mtmskbnd.dcx")) return;
+        if (!ResourceExists(mapTileTpfBhdPath, "71_maptile.tpfbhd")) return;
+        if (!ResourceExists(mapTileTpfBtdPath, "71_maptile.tpfbdt")) return;
         gameModFolderPathLabel.Text = Path.GetDirectoryName(mapTileTpfBhdPath);
         mapTileMaskBnd = BND4.Read(mapTileMaskBndPath);
         mapTileTpfBhd = BXF4.Read(mapTileTpfBhdPath, mapTileTpfBtdPath);
         outputFolderGroupBox.Enabled = true;
+        mapImageGroupBox.Enabled = true;
     }
 
     private void OutputFolderButton_Click(object sender, EventArgs e)
@@ -336,12 +338,8 @@ public partial class ERMapGenerator : Form
         if (savedMapImage == null) return;
         int gridSize = GetZoomLevels().GetValueOrDefault(zoomLevel);
         const int tileSize = 256;
-        string outputDirectory = Path.Combine(Path.GetDirectoryName(mapImageFilePathLabel.Text)!, "mod\\menu");
-        if (!Directory.Exists(outputDirectory)) Directory.CreateDirectory(outputDirectory);
         // TODO: Cleanup
         using Bitmap mapImage = new(savedMapImage);
-        string bhdPath = Path.Combine(outputDirectory, "71_maptile.tpfbhd");
-        string bdtPath = bhdPath.Replace(".tpfbhd", ".tpfbdt");
         await ReadMapTileMaskRoot(groundLevel);
         SetFlagsForExportTiles();
         for (int x = 0; x < gridSize; x++)
@@ -369,10 +367,15 @@ public partial class ERMapGenerator : Form
                 WriteTile(tileImage, newTileName);
             }
         }
-        mapTileBhd.Files = mapTileBhd.Files.OrderBy(i => i.Name).ToList();
-        for (int i = 0; i < mapTileBhd.Files.Count; i++)
-            mapTileBhd.Files[i].ID = i;
-        mapTileBhd.Write(bhdPath, bdtPath);
+        IEnumerable<int> files = mapTileBhd.Files.Select(file =>
+            mapTileTpfBhd.Files.FindIndex(i =>
+                string.Equals(i.Name, file.Name, StringComparison.OrdinalIgnoreCase)));
+        foreach (int i in files.Where(index => index != -1)) mapTileTpfBhd.Files.RemoveAt(i);
+        mapTileTpfBhd.Files.AddRange(mapTileBhd.Files);
+        mapTileTpfBhd.Files = mapTileTpfBhd.Files.OrderBy(i => i.Name).ToList();
+        for (int i = 0; i < mapTileTpfBhd.Files.Count; i++)
+            mapTileTpfBhd.Files[i].ID = i;
+        mapTileTpfBhd.Write(mapTileTpfBhdPath, mapTileTpfBtdPath);
     }
 
     private void ToggleAllControls(bool wantsEnabled)
@@ -381,6 +384,7 @@ public partial class ERMapGenerator : Form
         mapConfigurationGroupBox.Enabled = wantsEnabled;
         automationModeTabControl.Enabled = wantsEnabled;
         automateButton.Enabled = wantsEnabled;
+        gameModFolderGroupBox.Enabled = wantsEnabled;
     }
 
     private async void AutomateButton_Click(object sender, EventArgs e)
@@ -508,9 +512,9 @@ public partial class ERMapGenerator : Form
         };
         if (dialog.ShowDialog() != DialogResult.OK) return;
         // TODO: Function
-        string[] mapImageFolderFiles = GetAllFolderFiles(Path.GetDirectoryName(dialog.FileName) ?? "");
-        mapTileMaskBndPath = mapImageFolderFiles.FirstOrDefault(i => i.Contains(".mtmskbnd.dcx")) ?? "";
-        if (!ResourceExists(mapTileMaskBndPath, "map tile mask BND")) return;
+        string[] gameModFolderFiles = GetAllFolderFiles(gameModFolderPath);
+        mapTileMaskBndPath = gameModFolderFiles.FirstOrDefault(i => i.Contains(".mtmskbnd.dcx")) ?? "";
+        if (!ResourceExists(mapTileMaskBndPath, "71_maptile.mtmskbnd.dcx")) return;
         mapTileMaskBnd = BND4.Read(mapTileMaskBndPath);
         if (!LoadMapImage(dialog.FileName)) return;
         mapImageFilePath = dialog.FileName;
@@ -519,6 +523,16 @@ public partial class ERMapGenerator : Form
         mapDisplayGroupBox.Enabled = true;
         PopulateGroundLevels();
         PopulateZoomLevels();
+
+        // TODO: Cleanup
+        try
+        {
+            string mapImageFileName = Path.GetFileName(mapImageFilePath);
+            string[] tokens = mapImageFileName.Split('_');
+            groundLevelComboBox.SelectedItem = groundLevelComboBox.Items.Cast<string>().FirstOrDefault(i => i.StartsWith(tokens[2]));
+            zoomLevelComboBox.SelectedItem = zoomLevelComboBox.Items.Cast<string>().FirstOrDefault(i => i.StartsWith(tokens[3]));
+        }
+        catch { }
     }
 
     private void MapDisplayPictureBox_MouseDown(object sender, MouseEventArgs e)
@@ -565,6 +579,7 @@ public partial class ERMapGenerator : Form
         outputFolderGroupBox.Enabled = false;
         drawTileDebugInfoCheckBox.Enabled = false;
         automateButton.Enabled = false;
+        mapImageGroupBox.Enabled = false;
     }
 
     private void MapDisplayPictureBox_MouseWheel(object? sender, MouseEventArgs e)

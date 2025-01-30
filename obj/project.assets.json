@@ -131,11 +131,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\Isaac Fisher\\Downloads\\ERMapGenerator\\ERMapGenerator.csproj",
+      "projectUniqueName": "C:\\Users\\Isaac Fisher\\Downloads\\Syncthing Shared\\Game Mods & Tools\\Tools\\FromSoftware\\Repositories\\Active\\ERMapGenerator\\ERMapGenerator.csproj",
       "projectName": "ERMapGenerator",
-      "projectPath": "C:\\Users\\Isaac Fisher\\Downloads\\ERMapGenerator\\ERMapGenerator.csproj",
+      "projectPath": "C:\\Users\\Isaac Fisher\\Downloads\\Syncthing Shared\\Game Mods & Tools\\Tools\\FromSoftware\\Repositories\\Active\\ERMapGenerator\\ERMapGenerator.csproj",
       "packagesPath": "C:\\Users\\Isaac Fisher\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\Isaac Fisher\\Downloads\\ERMapGenerator\\obj\\",
+      "outputPath": "C:\\Users\\Isaac Fisher\\Downloads\\Syncthing Shared\\Game Mods & Tools\\Tools\\FromSoftware\\Repositories\\Active\\ERMapGenerator\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\Isaac Fisher\\AppData\\Roaming\\NuGet\\NuGet.Config",
