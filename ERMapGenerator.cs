@@ -1,15 +1,14 @@
+using System.Drawing.Drawing2D;
 using System.Globalization;
 using System.Xml;
-using DdsFileTypePlus;
 using ImageMagick;
-using PaintDotNet;
 using SoulsFormats;
 
 namespace ERMapGenerator;
 
 public partial class ERMapGenerator : Form
 {
-    private const string version = "1.3";
+    private const string version = "1.4";
     private const float mapDisplayMaxZoomLevel = 2.0f;
     private const float mapDisplayZoomIncrement = 0.1f;
     private static string gameModFolderPath = "";
@@ -29,6 +28,7 @@ public partial class ERMapGenerator : Form
     private float mapDisplayZoomLevel;
     private string mapImageFilePath = "";
     private Bitmap savedMapImage = null!;
+    private CancellationTokenSource? cancellationTokenSource;
 
     public ERMapGenerator()
     {
@@ -176,7 +176,7 @@ public partial class ERMapGenerator : Form
 
     private async Task WriteStitchedMap(IMagickImage grid, string path)
     {
-        string outputFileName = $"{path}.dds";
+        string outputFileName = $"{path}.tga";
         string outputFilePath = $"{outputFolderPath}\\{outputFileName}";
         progressLabel.Invoke(new Action(() => progressLabel.Text = $@"Writing {outputFileName} to file..."));
         await Task.Delay(1000);
@@ -266,7 +266,7 @@ public partial class ERMapGenerator : Form
         }
     }
 
-    private async Task GenerateMaps()
+    private async Task GenerateMaps(CancellationToken cancellationToken = default)
     {
         List<string> groundLevels = GetGroundLevels();
         List<string> zoomLevels = GetZoomLevels().Keys.ToList();
@@ -277,25 +277,52 @@ public partial class ERMapGenerator : Form
         foreach (string groundLevel in groundLevels)
         {
             foreach (string zoomLevel in zoomLevels)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
                 await UnpackStitchMap(groundLevel, zoomLevel);
+            }
         }
     }
 
-    private async Task RepackTileMap()
+    private async Task RepackTileMap(CancellationToken cancellationToken = default)
     {
-        // TODO: Function
         List<string> groundLevels = GetGroundLevels();
         List<string> zoomLevels = GetZoomLevels().Keys.ToList();
         int groundLevelIndex = groundLevelComboBox.Invoke(() => groundLevelComboBox.SelectedIndex);
         int zoomLevelIndex = zoomLevelComboBox.Invoke(() => zoomLevelComboBox.SelectedIndex);
         groundLevels = GetFilteredGroundLevels(groundLevelIndex, groundLevels).ToList();
         zoomLevels = GetFilteredZoomLevels(zoomLevelIndex, zoomLevels).ToList();
+        mapTileBhd = new BXF4();
         foreach (string groundLevel in groundLevels)
         {
             foreach (string zoomLevel in zoomLevels)
-                await ExportTiles(groundLevel, zoomLevel);
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await ExportTiles(groundLevel, zoomLevel, cancellationToken);
+            }
         }
-        mapTileBhd = new BXF4();
+        await FinalizeRepack();
+    }
+
+    private async Task FinalizeRepack()
+    {
+        progressLabel.Invoke(() => progressLabel.Text = @"Finalizing repack...");
+        await Task.Delay(500);
+    
+        IEnumerable<int> files = mapTileBhd.Files.Select(file =>
+            mapTileTpfBhd.Files.FindIndex(i =>
+                string.Equals(i.Name, file.Name, StringComparison.OrdinalIgnoreCase)));
+        foreach (int i in files.Where(index => index != -1)) 
+            mapTileTpfBhd.Files.RemoveAt(i);
+    
+        mapTileTpfBhd.Files.AddRange(mapTileBhd.Files);
+        mapTileTpfBhd.Files = mapTileTpfBhd.Files.OrderBy(i => i.Name).ToList();
+    
+        for (int i = 0; i < mapTileTpfBhd.Files.Count; i++)
+            mapTileTpfBhd.Files[i].ID = i;
+    
+        progressLabel.Invoke(() => progressLabel.Text = @"Writing to disk...");
+        await Task.Run(() => mapTileTpfBhd.Write(mapTileTpfBhdPath, mapTileTpfBtdPath));
     }
 
     private IEnumerable<string> GetFilteredGroundLevels(int groundLevelIndex, IReadOnlyList<string> groundLevels)
@@ -313,15 +340,17 @@ public partial class ERMapGenerator : Form
             : new[] { zoomLevels[zoomLevelIndex] };
     }
 
-    private void WriteTile(IDisposable tileImage, string tileName)
+    private void WriteTile(Bitmap tileImage, string tileName)
     {
         progressLabel.Invoke(() => progressLabel.Text = $@"Writing {tileName}...");
-        TPF.Texture texture = new();
-        byte[] bytes = (byte[])new ImageConverter().ConvertTo(tileImage, typeof(byte[]))!;
-        IMagickImage<ushort> image = MagickImage.FromBase64(Convert.ToBase64String(bytes));
-        texture.Bytes = ConvertMagickImageToDDS(image);
-        texture.Name = tileName;
-        texture.Format = 0x66;
+
+        byte[] ddsBytes = DdsHelper.ConvertBitmapToDDS(tileImage);
+        TPF.Texture texture = new()
+        {
+            Bytes = ddsBytes,
+            Name = tileName,
+            Format = 0x66
+        };
         TPF tpf = new() { Compression = DCX.Type.DCX_KRAK };
         tpf.Textures.Add(texture);
         byte[] tpfBytes = tpf.Write();
@@ -333,12 +362,11 @@ public partial class ERMapGenerator : Form
         mapTileBhd.Files.Add(file);
     }
 
-    private async Task ExportTiles(string groundLevel, string zoomLevel)
+    private async Task ExportTiles(string groundLevel, string zoomLevel, CancellationToken cancellationToken = default)
     {
         if (savedMapImage == null) return;
         int gridSize = GetZoomLevels().GetValueOrDefault(zoomLevel);
         const int tileSize = 256;
-        // TODO: Cleanup
         using Bitmap mapImage = new(savedMapImage);
         await ReadMapTileMaskRoot(groundLevel);
         SetFlagsForExportTiles();
@@ -346,6 +374,8 @@ public partial class ERMapGenerator : Form
         {
             for (int y = 0; y < gridSize; y++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+            
                 Rectangle tileRect = new(
                     x * tileSize,
                     y * tileSize,
@@ -356,6 +386,10 @@ public partial class ERMapGenerator : Form
                 using (Graphics g = Graphics.FromImage(tileImage))
                 {
                     g.Clear(Color.Transparent);
+                    g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    g.SmoothingMode = SmoothingMode.HighQuality;
+                    g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                    g.CompositingQuality = CompositingQuality.HighQuality;
                     g.DrawImage(mapImage, new Rectangle(0, 0, tileSize, tileSize), tileRect, GraphicsUnit.Pixel);
                 }
                 string tileXPos = x.ToString("D2");
@@ -367,15 +401,6 @@ public partial class ERMapGenerator : Form
                 WriteTile(tileImage, newTileName);
             }
         }
-        IEnumerable<int> files = mapTileBhd.Files.Select(file =>
-            mapTileTpfBhd.Files.FindIndex(i =>
-                string.Equals(i.Name, file.Name, StringComparison.OrdinalIgnoreCase)));
-        foreach (int i in files.Where(index => index != -1)) mapTileTpfBhd.Files.RemoveAt(i);
-        mapTileTpfBhd.Files.AddRange(mapTileBhd.Files);
-        mapTileTpfBhd.Files = mapTileTpfBhd.Files.OrderBy(i => i.Name).ToList();
-        for (int i = 0; i < mapTileTpfBhd.Files.Count; i++)
-            mapTileTpfBhd.Files[i].ID = i;
-        mapTileTpfBhd.Write(mapTileTpfBhdPath, mapTileTpfBtdPath);
     }
 
     private void ToggleAllControls(bool wantsEnabled)
@@ -384,18 +409,42 @@ public partial class ERMapGenerator : Form
         mapConfigurationGroupBox.Enabled = wantsEnabled;
         automationModeTabControl.Enabled = wantsEnabled;
         automateButton.Enabled = wantsEnabled;
+        automateButton.Visible = wantsEnabled;
+        stopButton.Enabled = !wantsEnabled;
+        stopButton.Visible = !wantsEnabled;
         gameModFolderGroupBox.Enabled = wantsEnabled;
     }
 
     private async void AutomateButton_Click(object sender, EventArgs e)
     {
+        cancellationTokenSource = new CancellationTokenSource();
         ToggleAllControls(false);
-        if (automationModeTabControl.SelectedIndex == 0) await Task.Run(GenerateMaps);
-        else await Task.Run(RepackTileMap);
-        progressLabel.Invoke(new Action(() => progressLabel.Text = @"Automation complete!"));
+        try
+        {
+            if (automationModeTabControl.SelectedIndex == 0) 
+                await Task.Run(() => GenerateMaps(cancellationTokenSource.Token));
+            else 
+                await Task.Run(() => RepackTileMap(cancellationTokenSource.Token));
+            progressLabel.Invoke(new Action(() => progressLabel.Text = @"Automation complete!"));
+        }
+        catch (OperationCanceledException)
+        {
+            progressLabel.Invoke(new Action(() => progressLabel.Text = @"Stopped by user. Repacking tiles..."));
+            await Task.Delay(1000);
+            await FinalizeRepack();
+            progressLabel.Invoke(new Action(() => progressLabel.Text = @"Repacking complete!"));
+        }
         await Task.Delay(1000);
         progressLabel.Text = @"Waiting...";
         ToggleAllControls(true);
+        cancellationTokenSource?.Dispose();
+        cancellationTokenSource = null;
+    }
+
+    private void StopButton_Click(object sender, EventArgs e)
+    {
+        cancellationTokenSource?.Cancel();
+        stopButton.Enabled = false;
     }
 
     private void UpdateMapDisplayMinZoomLevel()
@@ -491,7 +540,11 @@ public partial class ERMapGenerator : Form
         Bitmap mapImage;
         try
         {
-            mapImage = DdsFile.Load(path).CreateAliasedBitmap();
+            using MagickImage magickImage = new(path);
+            using MemoryStream memoryStream = new();
+            magickImage.Write(memoryStream, MagickFormat.Bmp);
+            memoryStream.Position = 0;
+            mapImage = new Bitmap(memoryStream);
         }
         catch
         {
@@ -507,8 +560,8 @@ public partial class ERMapGenerator : Form
     {
         OpenFileDialog dialog = new()
         {
-            Filter = @"DDS File (*.dds)|*.dds",
-            Title = @"Select Map DDS Image"
+            Filter = @"TGA File (*.tga)|*.tga",
+            Title = @"Select Map TGA Image"
         };
         if (dialog.ShowDialog() != DialogResult.OK) return;
         // TODO: Function
@@ -617,17 +670,6 @@ public partial class ERMapGenerator : Form
             newLeft = mapDisplayPictureBox.Parent.ClientSize.Width - mapDisplayPictureBox.Width;
         mapDisplayPictureBox.Top = newTop;
         mapDisplayPictureBox.Left = newLeft;
-    }
-
-    private static byte[] ConvertMagickImageToDDS(IMagickImage image)
-    {
-        MemoryStream ogDdsStream = new();
-        image.Write(ogDdsStream, MagickFormat.Dds);
-        Surface ddsSurface = DdsFile.Load(ogDdsStream.ToArray());
-        MemoryStream recomDdsStream = new();
-        DdsFile.Save(recomDdsStream, DdsFileFormat.BC7, DdsErrorMetric.Perceptual, BC7CompressionSpeed.Fast,
-            false, false, ResamplingAlgorithm.Bicubic, ddsSurface, null);
-        return recomDdsStream.ToArray();
     }
 
     private void AutomationModeTabControl_SelectedIndexChanged(object sender, EventArgs e)

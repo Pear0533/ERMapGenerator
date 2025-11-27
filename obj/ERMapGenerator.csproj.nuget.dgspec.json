@@ -1,20 +1,25 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Isaac Fisher\\Downloads\\Syncthing Shared\\Game Mods & Tools\\Tools\\FromSoftware\\Repositories\\Active\\ERMapGenerator\\ERMapGenerator.csproj": {}
+    "D:\\ERMapGenerator\\ERMapGenerator.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Isaac Fisher\\Downloads\\Syncthing Shared\\Game Mods & Tools\\Tools\\FromSoftware\\Repositories\\Active\\ERMapGenerator\\ERMapGenerator.csproj": {
+    "D:\\ERMapGenerator\\ERMapGenerator.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Isaac Fisher\\Downloads\\Syncthing Shared\\Game Mods & Tools\\Tools\\FromSoftware\\Repositories\\Active\\ERMapGenerator\\ERMapGenerator.csproj",
+        "projectUniqueName": "D:\\ERMapGenerator\\ERMapGenerator.csproj",
         "projectName": "ERMapGenerator",
-        "projectPath": "C:\\Users\\Isaac Fisher\\Downloads\\Syncthing Shared\\Game Mods & Tools\\Tools\\FromSoftware\\Repositories\\Active\\ERMapGenerator\\ERMapGenerator.csproj",
+        "projectPath": "D:\\ERMapGenerator\\ERMapGenerator.csproj",
         "packagesPath": "C:\\Users\\Isaac Fisher\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Isaac Fisher\\Downloads\\Syncthing Shared\\Game Mods & Tools\\Tools\\FromSoftware\\Repositories\\Active\\ERMapGenerator\\obj\\",
+        "outputPath": "D:\\ERMapGenerator\\obj\\",
         "projectStyle": "PackageReference",
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages",
+          "C:\\Program Files\\dotnet\\sdk\\NuGetFallbackFolder"
+        ],
         "configFilePaths": [
           "C:\\Users\\Isaac Fisher\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
@@ -34,7 +39,13 @@
           "warnAsError": [
             "NU1605"
           ]
-        }
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "9.0.200"
       },
       "frameworks": {
         "net7.0-windows7.0": {
@@ -64,7 +75,7 @@
               "privateAssets": "none"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\7.0.401\\RuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.200\\RuntimeIdentifierGraph.json"
         }
       }
     }

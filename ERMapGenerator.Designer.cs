@@ -58,6 +58,7 @@
             label5 = new Label();
             gameModFolderPathLabel = new Label();
             browseGameModFolderButton = new Button();
+            stopButton = new Button();
             mapConfigurationGroupBox.SuspendLayout();
             automationModeTabControl.SuspendLayout();
             tabPage2.SuspendLayout();
@@ -373,11 +374,22 @@
             browseGameModFolderButton.UseVisualStyleBackColor = true;
             browseGameModFolderButton.Click += BrowseGameModFolderButton_Click;
             // 
+            // stopButton
+            // 
+            stopButton.Location = new Point(460, 578);
+            stopButton.Name = "stopButton";
+            stopButton.Size = new Size(107, 23);
+            stopButton.TabIndex = 17;
+            stopButton.Text = "Stop!";
+            stopButton.UseVisualStyleBackColor = true;
+            stopButton.Click += StopButton_Click;
+            // 
             // ERMapGenerator
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(577, 637);
+            Controls.Add(stopButton);
             Controls.Add(progressLabel);
             Controls.Add(mapConfigurationGroupBox);
             Controls.Add(gameModFolderGroupBox);
@@ -441,5 +453,6 @@
         private Label outputFolderPathLabel;
         private Button outputFolderButton;
         private CheckBox drawTileDebugInfoCheckBox;
+        private Button stopButton;
     }
 }
