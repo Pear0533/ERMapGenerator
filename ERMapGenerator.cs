@@ -30,6 +30,21 @@ public partial class ERMapGenerator : Form
     private Bitmap savedMapImage = null!;
     private CancellationTokenSource? cancellationTokenSource;
 
+    private const int L0_SIZE = 10496;
+    private const int L1_SIZE = 7936;
+    private const int L2_SIZE = 2816;
+
+    private const int L1_SCALE_SUBTRACT = 78;
+    private const int L1_OFFSET_X = 1;
+    private const int L1_OFFSET_Y = 1;
+
+    private const int L2_SCALE_SUBTRACT = 731;
+    private const int L2_OFFSET_X = 4;
+    private const int L2_OFFSET_Y = 516;
+
+    private Bitmap? scaledL1Image = null;
+    private Bitmap? scaledL2Image = null;
+
     public ERMapGenerator()
     {
         InitializeComponent();
@@ -68,8 +83,9 @@ public partial class ERMapGenerator : Form
     private static bool ResourceExists(string path, string dispName)
     {
         bool doesExist = Path.HasExtension(path) && File.Exists(path) || Directory.Exists(path);
-        if (!doesExist) ShowInformationDialog($"{dispName} wasn't found. "
-            + "Please ensure it's located in the menu folder in your game/mod files.");
+        if (!doesExist)
+            ShowInformationDialog($"{dispName} wasn't found. "
+                + "Please ensure it's located in the menu folder in your game/mod files.");
         return doesExist;
     }
 
@@ -284,6 +300,64 @@ public partial class ERMapGenerator : Form
         }
     }
 
+    private Bitmap GetScaledMapForZoomLevel(string zoomLevel)
+    {
+        if (savedMapImage == null) return null!;
+        int targetSize = zoomLevel switch
+        {
+            "L0" => L0_SIZE,
+            "L1" => L1_SIZE,
+            "L2" => L2_SIZE,
+            _ => L0_SIZE
+        };
+        if (zoomLevel == "L0" && savedMapImage.Width == L0_SIZE && savedMapImage.Height == L0_SIZE)
+        {
+            return new Bitmap(savedMapImage);
+        }
+        if (zoomLevel == "L1" && scaledL1Image != null)
+        {
+            return new Bitmap(scaledL1Image);
+        }
+        if (zoomLevel == "L2" && scaledL2Image != null)
+        {
+            return new Bitmap(scaledL2Image);
+        }
+        Bitmap scaledImage = new Bitmap(targetSize, targetSize);
+        using (Graphics g = Graphics.FromImage(scaledImage))
+        {
+            g.Clear(Color.Transparent);
+            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            g.SmoothingMode = SmoothingMode.HighQuality;
+            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+            g.CompositingQuality = CompositingQuality.HighQuality;
+            if (zoomLevel == "L1")
+            {
+                int scaledSize = targetSize - L1_SCALE_SUBTRACT;
+                g.DrawImage(savedMapImage, L1_OFFSET_X, L1_OFFSET_Y, scaledSize, scaledSize);
+            }
+            else if (zoomLevel == "L2")
+            {
+                int scaledSize = targetSize - L2_SCALE_SUBTRACT;
+                g.DrawImage(savedMapImage, L2_OFFSET_X, L2_OFFSET_Y, scaledSize, scaledSize);
+            }
+            else
+            {
+                g.DrawImage(savedMapImage, 0, 0, targetSize, targetSize);
+            }
+        }
+        if (zoomLevel == "L1")
+        {
+            scaledL1Image?.Dispose();
+            scaledL1Image = new Bitmap(scaledImage);
+        }
+        else if (zoomLevel == "L2")
+        {
+            scaledL2Image?.Dispose();
+            scaledL2Image = new Bitmap(scaledImage);
+        }
+        return scaledImage;
+    }
+
     private async Task RepackTileMap(CancellationToken cancellationToken = default)
     {
         List<string> groundLevels = GetGroundLevels();
@@ -293,6 +367,17 @@ public partial class ERMapGenerator : Form
         groundLevels = GetFilteredGroundLevels(groundLevelIndex, groundLevels).ToList();
         zoomLevels = GetFilteredZoomLevels(zoomLevelIndex, zoomLevels).ToList();
         mapTileBhd = new BXF4();
+        progressLabel.Invoke(() => progressLabel.Text = @"Preparing scaled map images...");
+        if (zoomLevels.Contains("L1"))
+        {
+            scaledL1Image?.Dispose();
+            scaledL1Image = GetScaledMapForZoomLevel("L1");
+        }
+        if (zoomLevels.Contains("L2"))
+        {
+            scaledL2Image?.Dispose();
+            scaledL2Image = GetScaledMapForZoomLevel("L2");
+        }
         foreach (string groundLevel in groundLevels)
         {
             foreach (string zoomLevel in zoomLevels)
@@ -302,25 +387,25 @@ public partial class ERMapGenerator : Form
             }
         }
         await FinalizeRepack();
+        scaledL1Image?.Dispose();
+        scaledL1Image = null;
+        scaledL2Image?.Dispose();
+        scaledL2Image = null;
     }
 
     private async Task FinalizeRepack()
     {
         progressLabel.Invoke(() => progressLabel.Text = @"Finalizing repack...");
         await Task.Delay(500);
-    
         IEnumerable<int> files = mapTileBhd.Files.Select(file =>
             mapTileTpfBhd.Files.FindIndex(i =>
                 string.Equals(i.Name, file.Name, StringComparison.OrdinalIgnoreCase)));
-        foreach (int i in files.Where(index => index != -1)) 
+        foreach (int i in files.Where(index => index != -1))
             mapTileTpfBhd.Files.RemoveAt(i);
-    
         mapTileTpfBhd.Files.AddRange(mapTileBhd.Files);
         mapTileTpfBhd.Files = mapTileTpfBhd.Files.OrderBy(i => i.Name).ToList();
-    
         for (int i = 0; i < mapTileTpfBhd.Files.Count; i++)
             mapTileTpfBhd.Files[i].ID = i;
-    
         progressLabel.Invoke(() => progressLabel.Text = @"Writing to disk...");
         await Task.Run(() => mapTileTpfBhd.Write(mapTileTpfBhdPath, mapTileTpfBtdPath));
     }
@@ -343,7 +428,6 @@ public partial class ERMapGenerator : Form
     private void WriteTile(Bitmap tileImage, string tileName)
     {
         progressLabel.Invoke(() => progressLabel.Text = $@"Writing {tileName}...");
-
         byte[] ddsBytes = DdsHelper.ConvertBitmapToDDS(tileImage);
         TPF.Texture texture = new()
         {
@@ -367,7 +451,7 @@ public partial class ERMapGenerator : Form
         if (savedMapImage == null) return;
         int gridSize = GetZoomLevels().GetValueOrDefault(zoomLevel);
         const int tileSize = 256;
-        using Bitmap mapImage = new(savedMapImage);
+        using Bitmap mapImage = GetScaledMapForZoomLevel(zoomLevel);
         await ReadMapTileMaskRoot(groundLevel);
         SetFlagsForExportTiles();
         for (int x = 0; x < gridSize; x++)
@@ -375,7 +459,6 @@ public partial class ERMapGenerator : Form
             for (int y = 0; y < gridSize; y++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-            
                 Rectangle tileRect = new(
                     x * tileSize,
                     y * tileSize,
@@ -421,9 +504,9 @@ public partial class ERMapGenerator : Form
         ToggleAllControls(false);
         try
         {
-            if (automationModeTabControl.SelectedIndex == 0) 
+            if (automationModeTabControl.SelectedIndex == 0)
                 await Task.Run(() => GenerateMaps(cancellationTokenSource.Token));
-            else 
+            else
                 await Task.Run(() => RepackTileMap(cancellationTokenSource.Token));
             progressLabel.Invoke(new Action(() => progressLabel.Text = @"Automation complete!"));
         }
@@ -533,6 +616,10 @@ public partial class ERMapGenerator : Form
         mapDisplayPictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
         if (resetPosition) UpdateMapImagePosition(0, 0);
         mapDisplayMinZoomLevel = -1;
+        scaledL1Image?.Dispose();
+        scaledL1Image = null;
+        scaledL2Image?.Dispose();
+        scaledL2Image = null;
     }
 
     private bool LoadMapImage(string path)

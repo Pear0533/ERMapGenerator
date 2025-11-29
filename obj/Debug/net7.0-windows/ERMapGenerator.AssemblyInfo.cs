@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ERMapGenerator")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+5cc6823149de0e00159a515f3b4f04734ad4042a")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2010117afd5215e52d2e0ac01ded9bb1fcb4b4a0")]
 [assembly: System.Reflection.AssemblyProductAttribute("ERMapGenerator")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ERMapGenerator")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
