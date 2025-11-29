@@ -45,6 +45,10 @@ public partial class ERMapGenerator : Form
     private Bitmap? scaledL1Image = null;
     private Bitmap? scaledL2Image = null;
 
+    private static Bitmap? blankTileL0 = null;
+    private static Bitmap? blankTileL1 = null;
+    private static Bitmap? blankTileL2 = null;
+
     public ERMapGenerator()
     {
         InitializeComponent();
@@ -108,6 +112,7 @@ public partial class ERMapGenerator : Form
         gameModFolderPathLabel.Text = Path.GetDirectoryName(mapTileTpfBhdPath);
         mapTileMaskBnd = BND4.Read(mapTileMaskBndPath);
         mapTileTpfBhd = BXF4.Read(mapTileTpfBhdPath, mapTileTpfBtdPath);
+        LoadBlankTilesFromGameFiles();
         outputFolderGroupBox.Enabled = true;
         mapImageGroupBox.Enabled = true;
     }
@@ -300,6 +305,48 @@ public partial class ERMapGenerator : Form
         }
     }
 
+    private void LoadBlankTilesFromGameFiles()
+    {
+        try
+        {
+            if (mapTileTpfBhd == null || mapTileTpfBhd.Files.Count == 0) return;
+            BinderFile? l0File = mapTileTpfBhd.Files.FirstOrDefault(f => f.Name.Contains("MENU_MapTile_M00_L0_00_00_00000000"));
+            BinderFile? l1File = mapTileTpfBhd.Files.FirstOrDefault(f => f.Name.Contains("MENU_MapTile_M00_L1_00_00_00000000"));
+            BinderFile? l2File = mapTileTpfBhd.Files.FirstOrDefault(f => f.Name.Contains("MENU_MapTile_M00_L2_00_00_00000000"));
+            if (l0File != null)
+            {
+                TPF.Texture texFile = TPF.Read(l0File.Bytes).Textures[0];
+                using MagickImage magickImage = new(texFile.Bytes);
+                using MemoryStream memoryStream = new();
+                magickImage.Write(memoryStream, MagickFormat.Bmp);
+                memoryStream.Position = 0;
+                blankTileL0 = new Bitmap(memoryStream);
+            }
+            if (l1File != null)
+            {
+                TPF.Texture texFile = TPF.Read(l1File.Bytes).Textures[0];
+                using MagickImage magickImage = new(texFile.Bytes);
+                using MemoryStream memoryStream = new();
+                magickImage.Write(memoryStream, MagickFormat.Bmp);
+                memoryStream.Position = 0;
+                blankTileL1 = new Bitmap(memoryStream);
+            }
+            if (l2File != null)
+            {
+                TPF.Texture texFile = TPF.Read(l2File.Bytes).Textures[0];
+                using MagickImage magickImage = new(texFile.Bytes);
+                using MemoryStream memoryStream = new();
+                magickImage.Write(memoryStream, MagickFormat.Bmp);
+                memoryStream.Position = 0;
+                blankTileL2 = new Bitmap(memoryStream);
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowInformationDialog($"Error loading blank tiles from game files: {ex.Message}");
+        }
+    }
+
     private Bitmap GetScaledMapForZoomLevel(string zoomLevel)
     {
         if (savedMapImage == null) return null!;
@@ -322,6 +369,19 @@ public partial class ERMapGenerator : Form
         {
             return new Bitmap(scaledL2Image);
         }
+        Bitmap workingImage = new Bitmap(savedMapImage);
+        const int tileSize = 256;
+        if (zoomLevel != "L0")
+        {
+            using (Graphics g = Graphics.FromImage(workingImage))
+            {
+                g.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceCopy;
+                using (SolidBrush transparentBrush = new SolidBrush(Color.Transparent))
+                {
+                    g.FillRectangle(transparentBrush, 0, workingImage.Height - tileSize, tileSize, tileSize);
+                }
+            }
+        }
         Bitmap scaledImage = new Bitmap(targetSize, targetSize);
         using (Graphics g = Graphics.FromImage(scaledImage))
         {
@@ -333,18 +393,30 @@ public partial class ERMapGenerator : Form
             if (zoomLevel == "L1")
             {
                 int scaledSize = targetSize - L1_SCALE_SUBTRACT;
-                g.DrawImage(savedMapImage, L1_OFFSET_X, L1_OFFSET_Y, scaledSize, scaledSize);
+                g.DrawImage(workingImage, L1_OFFSET_X, L1_OFFSET_Y, scaledSize, scaledSize);
             }
             else if (zoomLevel == "L2")
             {
                 int scaledSize = targetSize - L2_SCALE_SUBTRACT;
-                g.DrawImage(savedMapImage, L2_OFFSET_X, L2_OFFSET_Y, scaledSize, scaledSize);
+                g.DrawImage(workingImage, L2_OFFSET_X, L2_OFFSET_Y, scaledSize, scaledSize);
             }
             else
             {
-                g.DrawImage(savedMapImage, 0, 0, targetSize, targetSize);
+                g.DrawImage(workingImage, 0, 0, targetSize, targetSize);
+            }
+            Bitmap? blankTile = zoomLevel switch
+            {
+                "L0" => blankTileL0,
+                "L1" => blankTileL1,
+                "L2" => blankTileL2,
+                _ => null
+            };
+            if (blankTile != null)
+            {
+                g.DrawImage(blankTile, 0, scaledImage.Height - tileSize, tileSize, tileSize);
             }
         }
+        workingImage.Dispose();
         if (zoomLevel == "L1")
         {
             scaledL1Image?.Dispose();

@@ -1,7 +1,12 @@
 {
   "Version": 1,
   "WorkspaceRootPath": "D:\\ERMapGenerator\\",
-  "Documents": [],
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{E868C864-F119-445A-A3D5-8B22FA53C066}|ERMapGenerator.csproj|d:\\ermapgenerator\\ermapgenerator.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{E868C864-F119-445A-A3D5-8B22FA53C066}|ERMapGenerator.csproj|solutionrelative:ermapgenerator.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
   "DocumentGroupContainers": [
     {
       "Orientation": 0,
@@ -9,11 +14,24 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": -1,
+          "SelectedChildIndex": 1,
           "Children": [
             {
               "$type": "Bookmark",
               "Name": "ST:128:0:{1fc202d4-d401-403c-9834-5b218574bb67}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "ERMapGenerator.cs",
+              "DocumentMoniker": "D:\\ERMapGenerator\\ERMapGenerator.cs",
+              "RelativeDocumentMoniker": "ERMapGenerator.cs",
+              "ToolTip": "D:\\ERMapGenerator\\ERMapGenerator.cs",
+              "RelativeToolTip": "ERMapGenerator.cs",
+              "ViewState": "AgIAAFoAAAAAAAAAAAAmwHMAAAAIAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-29T03:27:55.043Z",
+              "EditorCaption": ""
             }
           ]
         }
